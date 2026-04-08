@@ -1,0 +1,5 @@
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/0296e9dfccf1dc6f43ae3dbacbf89472/obj/Debug/net6.0/app.csproj.AssemblyReference.cache
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/0296e9dfccf1dc6f43ae3dbacbf89472/obj/Debug/net6.0/app.GeneratedMSBuildEditorConfig.editorconfig
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/0296e9dfccf1dc6f43ae3dbacbf89472/obj/Debug/net6.0/app.AssemblyInfoInputs.cache
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/0296e9dfccf1dc6f43ae3dbacbf89472/obj/Debug/net6.0/app.AssemblyInfo.cs
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/0296e9dfccf1dc6f43ae3dbacbf89472/obj/Debug/net6.0/app.csproj.CoreCompileInputs.cache

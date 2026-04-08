@@ -1,0 +1,15 @@
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/8039c7a2623d5ee6cc26013989ec2198/bin/Debug/net6.0/app
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/8039c7a2623d5ee6cc26013989ec2198/bin/Debug/net6.0/app.deps.json
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/8039c7a2623d5ee6cc26013989ec2198/bin/Debug/net6.0/app.runtimeconfig.json
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/8039c7a2623d5ee6cc26013989ec2198/bin/Debug/net6.0/app.dll
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/8039c7a2623d5ee6cc26013989ec2198/bin/Debug/net6.0/app.pdb
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/8039c7a2623d5ee6cc26013989ec2198/obj/Debug/net6.0/app.csproj.AssemblyReference.cache
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/8039c7a2623d5ee6cc26013989ec2198/obj/Debug/net6.0/app.GeneratedMSBuildEditorConfig.editorconfig
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/8039c7a2623d5ee6cc26013989ec2198/obj/Debug/net6.0/app.AssemblyInfoInputs.cache
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/8039c7a2623d5ee6cc26013989ec2198/obj/Debug/net6.0/app.AssemblyInfo.cs
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/8039c7a2623d5ee6cc26013989ec2198/obj/Debug/net6.0/app.csproj.CoreCompileInputs.cache
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/8039c7a2623d5ee6cc26013989ec2198/obj/Debug/net6.0/app.dll
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/8039c7a2623d5ee6cc26013989ec2198/obj/Debug/net6.0/refint/app.dll
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/8039c7a2623d5ee6cc26013989ec2198/obj/Debug/net6.0/app.pdb
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/8039c7a2623d5ee6cc26013989ec2198/obj/Debug/net6.0/app.genruntimeconfig.cache
+/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/8039c7a2623d5ee6cc26013989ec2198/obj/Debug/net6.0/ref/app.dll

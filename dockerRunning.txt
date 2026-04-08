@@ -1,0 +1,4 @@
+docker ps...
+docker stop ad39a59a77e3
+docker build -t cod_generator_backend .
+docker run -p 3000:3000 cod_generator_backend
