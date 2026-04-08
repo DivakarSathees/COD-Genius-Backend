@@ -1,52 +1,26 @@
 import sys
-import json
-
+from datetime import datetime, timedelta
 class Book:
-    def __init__(self, book_id, title, author, publication_year):
-        self.book_id = book_id
-        self.title = title
-        self.author = author
-        self.publication_year = publication_year
-
-class Library:
-    def __init__(self):
-        self.books = {}
-
-    def add_book(self, book_id, title, author, publication_year):
-        self.books[book_id] = Book(book_id, title, author, publication_year)
-
-    def remove_book(self, book_id):
-        if book_id in self.books:
-            del self.books[book_id]
+    def __init__(self, BookID, BorrowDate, ReturnDate):
+        self.BookID = BookID
+        self.BorrowDate = datetime.strptime(BorrowDate, '%Y-%m-%d')
+        self.ReturnDate = datetime.strptime(ReturnDate, '%Y-%m-%d')
+    def IsOverdue(self):
+        return (self.ReturnDate - self.BorrowDate).days > 14
+    def CalculateFine(self):
+        if self.IsOverdue():
+            return (self.ReturnDate - self.BorrowDate).days * 0.5
         else:
-            print('Book not found')
-
-    def search_book(self, book_id):
-        if book_id in self.books:
-            book = self.books[book_id]
-            print(f'{book.book_id} {book.title} {book.author} {book.publication_year}')
-        else:
-            print('Book not found')
-
+            return 0.0
 def main():
-    library = Library()
     try:
         num_books = int(sys.stdin.readline().strip())
         for _ in range(num_books):
-            book_id, title, author, publication_year = sys.stdin.readline().strip().split(',', 3)
-            library.add_book(book_id, title, author, publication_year)
-        while True:
-            try:
-                line = sys.stdin.readline().strip()
-                if not line:
-                    break
-                command, book_id = line.split(' ', 1)
-                if command == 'search':
-                    library.search_book(book_id)
-                elif command == 'remove':
-                    library.remove_book(book_id)
-            except Exception as e:
-                pass
+            BookID, BorrowDate, ReturnDate = sys.stdin.readline().strip().split()
+            book = Book(BookID, BorrowDate, ReturnDate)
+            fine = book.CalculateFine()
+            overdue = book.IsOverdue()
+            print(f"BookID: {book.BookID}, BorrowDate: {book.BorrowDate.strftime('%Y-%m-%d')}, ReturnDate: {book.ReturnDate.strftime('%Y-%m-%d')}, IsOverdue: {overdue}, Fine: {fine}")
     except Exception as e:
         pass
 if __name__ == '__main__':
