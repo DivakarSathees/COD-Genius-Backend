@@ -1,27 +1,42 @@
 import sys
-from datetime import datetime, timedelta
-class Book:
-    def __init__(self, BookID, BorrowDate, ReturnDate):
-        self.BookID = BookID
-        self.BorrowDate = datetime.strptime(BorrowDate, '%Y-%m-%d')
-        self.ReturnDate = datetime.strptime(ReturnDate, '%Y-%m-%d')
-    def IsOverdue(self):
-        return (self.ReturnDate - self.BorrowDate).days > 14
-    def CalculateFine(self):
-        if self.IsOverdue():
-            return (self.ReturnDate - self.BorrowDate).days * 0.5
-        else:
-            return 0.0
+
+class Node:
+    def __init__(self, employee_id, name, department):
+        self.employee_id = employee_id
+        self.name = name
+        self.department = department
+        self.next = None
+
+class EmployeeManagementSystem:
+    def __init__(self):
+        self.head = None
+
+    def add_employee(self, employee_id, name, department):
+        new_node = Node(employee_id, name, department)
+        if not self.head:
+            self.head = new_node
+            return
+        current = self.head
+        while current.next:
+            current = current.next
+        current.next = new_node
+
+    def print_employees(self):
+        current = self.head
+        while current:
+            print(f"{current.employee_id}, {current.name}, {current.department}")
+            current = current.next
+
 def main():
     try:
-        num_books = int(sys.stdin.readline().strip())
-        for _ in range(num_books):
-            BookID, BorrowDate, ReturnDate = sys.stdin.readline().strip().split()
-            book = Book(BookID, BorrowDate, ReturnDate)
-            fine = book.CalculateFine()
-            overdue = book.IsOverdue()
-            print(f"BookID: {book.BookID}, BorrowDate: {book.BorrowDate.strftime('%Y-%m-%d')}, ReturnDate: {book.ReturnDate.strftime('%Y-%m-%d')}, IsOverdue: {overdue}, Fine: {fine}")
+        num_employees = int(sys.stdin.readline().strip())
+        ems = EmployeeManagementSystem()
+        for _ in range(num_employees):
+            employee_id, name, department = sys.stdin.readline().strip().split(',')
+            ems.add_employee(employee_id, name, department)
+        ems.print_employees()
     except Exception as e:
         pass
+
 if __name__ == '__main__':
     main()

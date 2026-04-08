@@ -13,6 +13,9 @@ const axios = require('axios');
 const { aiSolutionGenerator } = require('./aiSolutionGenerator');
 const { validateSolution } = require('./codeValidator');
 const { AVAILABLE_MODELS } = require('./llmClient');
+const { router: authRouter } = require('./authRoutes');
+const authMiddleware = require('./authMiddleware');
+const { saveGeneratedQuestion, markAsUploaded, getGeneratedScenarios } = require('./questionRegistry');
 const bodyParser = require("body-parser");
 // const { spawn } = require("child_process");
 const { spawn, spawnSync } = require("child_process");
@@ -23,29 +26,29 @@ const { MongoClient } = require('mongodb');
 
 app.use(cors());
 app.use(express.json());
-
 app.use(express.urlencoded({ extended: true }));
 
-app.post("/generate-cod-description", async (req, res) => {
+// ── Auth routes (public) ──────────────────────────────────────────────────────
+app.use('/auth', authRouter);
+
+// ── Protected routes below ────────────────────────────────────────────────────
+app.post("/generate-cod-description", authMiddleware, async (req, res) => {
     try {
-        // Your task is to create 10 easy-level scenario-based MCQs on the topic - dotnet webapi with 4 options for each question & a single correct answer & the question should not be basic level
-        await aiCODGenerator(req.body)
-            .then((response) => {
-                // console.log(response[0]);
-                res.status(200).send({ response });
-            })
-            .catch((error) => {
-                console.error("Error in /generate-cod:", error);
-                res.status(500).send({ error: "Internal server error." });
-            });
-        
+        // Fetch previously generated scenario summaries for this user to prevent re-generation
+        const excludeScenarios = await getGeneratedScenarios({
+            generatedBy: req.user.username,
+            language: req.body.language,
+        }).catch(() => []);
+
+        const result = await aiCODGenerator({ ...req.body, excludeScenarios, createdBy: req.user.username });
+        res.status(200).send({ response: result });
     } catch (error) {
         console.error("Error in /generate-cod:", error);
         return res.status(500).send({ error: "Internal server error." });
     }
 });
 
-app.post("/generate-solution", async (req, res) => {
+app.post("/generate-solution", authMiddleware, async (req, res) => {
     try {
         const { autoValidate = false, ...solveParams } = req.body;
         const response = await aiSolutionGenerator(solveParams);
@@ -80,17 +83,24 @@ app.post("/generate-solution", async (req, res) => {
 //         });
 // });
 
-app.post("/upload-to-platform", async (req, res) => {
-    
-    await uploadToPlatform(req.body)
-        .then((response) => {
-            // console.log(response);
-            res.status(200).send({ response });
-        })
-        .catch((error) => {
-            console.error("Error in /upload-to-platform:", error);
-            res.status(500).send({ error: "Internal server error." });
-        });
+app.post("/upload-to-platform", authMiddleware, async (req, res) => {
+    try {
+        const response = await uploadToPlatform(req.body);
+
+        // Mark question as uploaded in registry
+        const uploadedItem = req.body.data;
+        if (uploadedItem?.question_data) {
+            await markAsUploaded({
+                question_data: uploadedItem.question_data,
+                uploadedBy: req.user?.username || 'unknown',
+            }).catch(err => console.warn('[Registry] Failed to mark uploaded:', err.message));
+        }
+
+        res.status(200).send({ response });
+    } catch (error) {
+        console.error("Error in /upload-to-platform:", error);
+        res.status(500).send({ error: "Internal server error." });
+    }
 });
 
 // // app.post("/run-java", (req, res) => {
@@ -395,7 +405,7 @@ function touchCache(folder) {
 }
 
 // --- Java route ---
-app.post("/run-java", (req, res) => {
+app.post("/run-java", authMiddleware, (req, res) => {
   const { code, input } = req.body;
   if (!code) return res.status(400).json({ error: "No code provided" });
 
@@ -574,7 +584,7 @@ app.post("/run-java", (req, res) => {
 //   run.stdin.end();
 // });
 
-app.post("/run-csharp", (req, res) => {
+app.post("/run-csharp", authMiddleware, (req, res) => {
   const { code, input } = req.body;
   if (!code) return res.status(400).json({ error: "No code provided" });
 
@@ -689,7 +699,7 @@ app.post("/run-csharp", (req, res) => {
 });
 
 
-app.post("/run-c", (req, res) => {
+app.post("/run-c", authMiddleware, (req, res) => {
   const { code, input } = req.body;
   if (!code) return res.status(400).json({ error: "No code provided" });
 
@@ -759,7 +769,7 @@ app.post("/run-c", (req, res) => {
   });
 });
 
-app.post("/run-python", (req, res) => {
+app.post("/run-python", authMiddleware, (req, res) => {
   const { code, input } = req.body;
   if (!code) return res.status(400).json({ error: "No code provided" });
   const pyFile = path.join(__dirname, "script.py");
@@ -874,7 +884,7 @@ app.get("/models", (_req, res) => {
     res.status(200).json(AVAILABLE_MODELS);
 });
 
-app.get("/sessions", async (req, res) => {
+app.get("/sessions", authMiddleware, async (req, res) => {
     try {
   const client = new MongoClient(process.env.MONGO_URI);
   const dbName = "aiMemoryDB";
@@ -887,7 +897,8 @@ app.get("/sessions", async (req, res) => {
     return client.db(dbName).collection(collectionName);
   }
   const collection = await connectDB();
-  const sessions = await collection.find({}).toArray();
+  // Scope sessions to the authenticated user
+  const sessions = await collection.find({ createdBy: req.user.username }).sort({ lastActive: -1 }).toArray();
   res.json({ sessions });
 
     } catch (error) {
@@ -897,7 +908,7 @@ app.get("/sessions", async (req, res) => {
 });
 
 // endpoint to get all records of a session with role assistant from MongoDB
-app.get("/conversations/:sessionId", async (req, res) => {
+app.get("/conversations/:sessionId", authMiddleware, async (req, res) => {
     try {
   const client = new MongoClient(process.env.MONGO_URI);
   const dbName = "aiMemoryDB";
@@ -934,7 +945,7 @@ app.get("/conversations/:sessionId", async (req, res) => {
 //         });
 // });
 
-app.post('/fetch-qbs', async (req, res) => {
+app.post('/fetch-qbs', authMiddleware, async (req, res) => {
     const authToken = req.body.authToken || req.query.authToken;
 
     if (!authToken) return res.status(400).send('Auth token is required');
@@ -1141,13 +1152,20 @@ app.post('/fetch-qbs', async (req, res) => {
  *     ]
  *   }
  */
-app.post("/generate-batch", async (req, res) => {
+app.post("/generate-batch", authMiddleware, async (req, res) => {
     try {
         const { count = 1, autoValidate = true, ...codGenParams } = req.body;
         const parsedCount = Math.max(1, parseInt(count) || 1);
+        const createdBy = req.user.username;
+
+        // Fetch previously generated scenario summaries for this user to prevent re-generation
+        const excludeScenarios = await getGeneratedScenarios({
+            generatedBy: createdBy,
+            language: codGenParams.language,
+        }).catch(() => []);
 
         // Step 1: Generate N problem descriptions in one LLM call
-        const codResult = await aiCODGenerator({ ...codGenParams, count: parsedCount });
+        const codResult = await aiCODGenerator({ ...codGenParams, count: parsedCount, excludeScenarios, createdBy });
         if (!codResult || !codResult.result || codResult.result.length === 0) {
             return res.status(500).json({ error: "Failed to generate problem descriptions." });
         }

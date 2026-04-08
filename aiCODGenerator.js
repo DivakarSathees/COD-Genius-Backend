@@ -4,6 +4,7 @@ const { jsonrepair } = require('jsonrepair');
 const { MongoClient } = require('mongodb');
 const { v4: uuidv4 } = require('uuid');
 const { callLLM } = require('./llmClient');
+const { saveGeneratedQuestion } = require('./questionRegistry');
 
 function getTokenCount(input) {
     const encoded = encoder.encode(input);
@@ -23,10 +24,10 @@ async function connectDB(col) {
     return mongoClient.db(dbName).collection(col);
 }
 
-async function createSession(name) {
+async function createSession(name, createdBy = 'unknown') {
     const sessions = await connectDB(sessionsCol);
     const sessionId = uuidv4();
-    await sessions.insertOne({ _id: sessionId, name, createdAt: new Date(), lastActive: new Date() });
+    await sessions.insertOne({ _id: sessionId, name, createdBy, createdAt: new Date(), lastActive: new Date() });
     return sessionId;
 }
 
@@ -79,7 +80,7 @@ function extractJSONArray(text) {
 }
 
 // ─── Prompt builder ───────────────────────────────────────────────────────────
-function buildCODPrompt({ prompt, format, language, topic, difficulty_level, count, provider }) {
+function buildCODPrompt({ prompt, format, language, topic, difficulty_level, count, provider, excludeScenarios = [] }) {
     const isAzure = (provider || 'groq').toLowerCase() === 'azure';
 
     let basePrompt = prompt ||
@@ -121,7 +122,7 @@ Rules:
 - Specify Classes/Methods if needed.
 - Use HTML formatting for rich text (question_data, inputformat, outputformat).
 - Each item must be unique — different scenario, different problem title, different logic.
-- Do not repeat scenarios from previous responses.
+- Do not repeat scenarios from previous responses.${excludeScenarios.length > 0 ? `\n- IMPORTANT: The following scenarios have already been generated for this user. Do NOT generate any question with a similar scenario, domain, or problem context — even if the title is different:\n${excludeScenarios.map(s => `  • ${s}`).join('\n')}` : ''}
 
 ${wrapperNote}
 The array must contain exactly ${count} item(s).
@@ -135,18 +136,18 @@ Do not include any explanations, extra text, or markdown formatting — return o
 exports.aiCODGenerator = async (req) => {
     try {
         let { sessionId, prompt, format, language, topic, difficulty_level, count,
-              provider = 'groq', model } = req;
+              provider = 'groq', model, excludeScenarios = [], createdBy = 'unknown' } = req;
 
         count = Math.max(1, parseInt(count) || 1);
         const isAzure = (provider || 'groq').toLowerCase() === 'azure';
 
         if (!sessionId) {
-            sessionId = await createSession(`${language} - ${topic}`);
+            sessionId = await createSession(`${language} - ${topic}`, createdBy);
         }
 
         const history = await getConversation(sessionId);
 
-        const fullPrompt = buildCODPrompt({ prompt, format, language, topic, difficulty_level, count, provider });
+        const fullPrompt = buildCODPrompt({ prompt, format, language, topic, difficulty_level, count, provider, excludeScenarios });
 
         console.log('[aiCODGenerator] provider:', provider, '| model:', model, '| count:', count);
 
@@ -181,6 +182,19 @@ exports.aiCODGenerator = async (req) => {
                 console.warn('[aiCODGenerator] Extracted JSON (first 1000):', jsonArrayText.substring(0, 1000));
                 const repairedJson = jsonrepair(jsonArrayText);
                 parsedJson = JSON.parse(repairedJson);
+            }
+
+            // Save every generated question immediately so the same scenario is never re-generated
+            for (const q of parsedJson) {
+                if (q.question_data) {
+                    await saveGeneratedQuestion({
+                        question_data: q.question_data,
+                        language: q.language || language,
+                        topic: topic || '',
+                        generatedBy: createdBy,
+                        sessionId,
+                    }).catch(err => console.warn('[Registry] Failed to save generated question:', err.message));
+                }
             }
 
             return { sessionId, result: parsedJson };
