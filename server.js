@@ -24,12 +24,29 @@ const { MongoClient } = require('mongodb');
 
 
 
-app.use(cors());
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
+}));
+app.options('*', cors()); // handle preflight for all routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ── Auth routes (public) ──────────────────────────────────────────────────────
 app.use('/auth', authRouter);
+
+// ── Debug endpoint (public — remove after confirming auth works) ──────────────
+app.get('/debug-auth', (req, res) => {
+    const header = req.headers.authorization || '';
+    const hasToken = header.startsWith('Bearer ') && header.length > 10;
+    res.json({
+        receivedAuthHeader: hasToken ? 'YES (token present)' : 'NO (missing or empty)',
+        jwtSecretSet: !!process.env.JWT_SECRET,
+    });
+});
 
 // ── Protected routes below ────────────────────────────────────────────────────
 app.post("/generate-cod-description", authMiddleware, async (req, res) => {
