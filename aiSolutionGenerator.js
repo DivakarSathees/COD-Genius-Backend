@@ -62,6 +62,7 @@ Requirements:
 - All special characters inside JSON strings (newlines, tabs, backslashes, double quotes) MUST be properly escaped.
 - Produce 10 to 15 distinct sample input/output pairs that cover edge cases, with a score per sample summing to 100 (Easy=low, Medium=normal, Hard=high score).
 - Ensure the JSON is syntactically valid.
+- STRICT JAVA RULE: If the language is Java, the public class name MUST be exactly "Main" (i.e. "public class Main"). No other class name is allowed as the entry point.
 
 Return JSON in this exact shape:
 ${returnShape}
