@@ -9,7 +9,7 @@ function getTokenCount(input) {
 }
 
 function stripCodeFences(text) {
-    return text.replace(/^```(?:json|javascript|js)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    return text.replace(/^```(?:json|javascript|js|cpp|c\+\+)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
 }
 
 function extractJSONArray(text) {
@@ -63,6 +63,7 @@ Requirements:
 - Produce 10 to 15 distinct sample input/output pairs that cover edge cases, with a score per sample summing to 100 (Easy=low, Medium=normal, Hard=high score).
 - Ensure the JSON is syntactically valid.
 - STRICT JAVA RULE: If the language is Java, the public class name MUST be exactly "Main" (i.e. "public class Main"). No other class name is allowed as the entry point.
+- STRICT C++ RULE: If the language is C++, use a standard "int main()" entry point. Include necessary headers (e.g. #include <iostream>, #include <vector>, etc.) and use "using namespace std;" for simplicity. The program must compile with g++ without errors.
 
 Return JSON in this exact shape:
 ${returnShape}

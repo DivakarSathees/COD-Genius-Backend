@@ -196,6 +196,62 @@ function executeC(code, input, timeoutMs = 10000) {
   });
 }
 
+function executeCpp(code, input, timeoutMs = 10000) {
+  return new Promise((resolve) => {
+    const hash = crypto.createHash('md5').update(code).digest('hex');
+    const cacheDir = path.join(__dirname, 'cpp_cache', hash);
+    const cppFile = path.join(cacheDir, 'program.cpp');
+    const outFile = path.join(cacheDir, 'program.out');
+
+    cleanupCache(path.join(__dirname, 'cpp_cache'), CACHE_TTL_MS_SHORT);
+    fs.mkdirSync(cacheDir, { recursive: true });
+    touchCache(cacheDir);
+    fs.writeFileSync(cppFile, code);
+
+    const compileStart = process.hrtime.bigint();
+
+    if (fs.existsSync(outFile)) {
+      runCpp(0);
+    } else {
+      const gpp = spawn('g++', ['-o', outFile, cppFile]);
+      let compileError = '';
+      gpp.stderr.on('data', (data) => { compileError += data.toString(); });
+      gpp.on('close', (exitCode) => {
+        const compileTimeMs = Math.round(Number(process.hrtime.bigint() - compileStart) / 1e6);
+        if (exitCode !== 0) return resolve({ error: 'Compilation Error', details: compileError.trim(), compileTimeMs });
+        runCpp(compileTimeMs);
+      });
+    }
+
+    function runCpp(compileTimeMs) {
+      const execStart = process.hrtime.bigint();
+      const run = spawn(outFile);
+      let output = '';
+      let runtimeError = '';
+      let timedOut = false;
+
+      const timer = setTimeout(() => {
+        timedOut = true;
+        run.kill('SIGKILL');
+      }, timeoutMs);
+
+      run.stdout.on('data', (data) => { output += data.toString(); });
+      run.stderr.on('data', (data) => { runtimeError += data.toString(); });
+      run.on('close', (exitCode) => {
+        clearTimeout(timer);
+        const execTimeMs = Math.round(Number(process.hrtime.bigint() - execStart) / 1e6);
+        const memBytes = Math.round(process.memoryUsage().rss / 1024);
+        if (timedOut) return resolve({ error: 'Time Limit Exceeded', compileTimeMs, execTimeMs, memBytes });
+        if (exitCode !== 0) return resolve({ error: 'Runtime Error', details: runtimeError.trim(), compileTimeMs, execTimeMs, memBytes });
+        resolve({ output: output.trim(), compileTimeMs, execTimeMs, memBytes });
+      });
+
+      if (input) run.stdin.write(input + '\n');
+      run.stdin.end();
+    }
+  });
+}
+
 function executePython(code, input, timeoutMs = 10000) {
   return new Promise((resolve) => {
     const hash = crypto.createHash('md5').update(code).digest('hex');
@@ -237,8 +293,9 @@ async function executeCode(language, code, input, timeoutMs = 10000) {
   if (lang === 'java') return executeJava(code, input, timeoutMs);
   if (lang === 'c#' || lang === 'csharp') return executeCSharp(code, input, timeoutMs);
   if (lang === 'c') return executeC(code, input, timeoutMs);
+  if (lang === 'c++' || lang === 'cpp') return executeCpp(code, input, timeoutMs);
   if (lang === 'python') return executePython(code, input, timeoutMs);
   return { error: `Unsupported language for auto-execution: ${language}` };
 }
 
-module.exports = { executeCode, executeJava, executeCSharp, executeC, executePython };
+module.exports = { executeCode, executeJava, executeCSharp, executeC, executeCpp, executePython };

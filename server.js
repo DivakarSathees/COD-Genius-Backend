@@ -786,6 +786,90 @@ app.post("/run-c", authMiddleware, (req, res) => {
   });
 });
 
+// --- C++ route ---
+app.post("/run-cpp", authMiddleware, (req, res) => {
+  const { code, input } = req.body;
+  if (!code) return res.status(400).json({ error: "No code provided" });
+
+  const hash = crypto.createHash("md5").update(code).digest("hex");
+  const cacheDir = path.join(__dirname, "cpp_cache", hash);
+  const cppFile = path.join(cacheDir, "program.cpp");
+  const outFile = path.join(cacheDir, "program.out");
+
+  cleanupCache(path.join(__dirname, "cpp_cache"), CACHE_TTL_MS_SHORT);
+
+  fs.mkdirSync(cacheDir, { recursive: true });
+  touchCache(cacheDir);
+  fs.writeFileSync(cppFile, code);
+
+  const compileStart = process.hrtime.bigint();
+
+  if (fs.existsSync(outFile)) {
+    runCpp();
+  } else {
+    const gpp = spawn("g++", ["-o", outFile, cppFile]);
+
+    let compileError = "";
+    gpp.stderr.on("data", (data) => { compileError += data.toString(); });
+
+    gpp.on("close", (compileCode) => {
+      const compileEnd = process.hrtime.bigint();
+      const compileTimeMs = Number(compileEnd - compileStart) / 1e6;
+
+      if (compileCode !== 0) {
+        return res.json({
+          error: "Compilation Error",
+          details: compileError.trim(),
+          compileTimeMs: Math.round(compileTimeMs),
+        });
+      }
+      runCpp(Math.round(compileTimeMs));
+    });
+  }
+
+  function runCpp(compileTimeMs = 0) {
+    const execStart = process.hrtime.bigint();
+    const run = spawn(outFile);
+
+    let output = "";
+    let runtimeError = "";
+
+    run.stdout.on("data", (data) => { output += data.toString(); });
+    run.stderr.on("data", (data) => { runtimeError += data.toString(); });
+
+    run.on("close", (exitCode) => {
+      const execEnd = process.hrtime.bigint();
+      const execTimeMs = Number(execEnd - execStart) / 1e6;
+
+      const timeBytes = Math.round(execTimeMs);
+      const memBytes = Math.round(process.memoryUsage().rss / 1024);
+
+      if (exitCode !== 0) {
+        return res.json({
+          error: "Runtime Error",
+          details: runtimeError.trim(),
+          compileTimeMs,
+          execTimeMs: Math.round(execTimeMs),
+          memBytes,
+          timeBytes,
+        });
+      }
+
+      res.json({
+        output: output.trim(),
+        compileTimeMs,
+        execTimeMs: Math.round(execTimeMs),
+        memBytes,
+        timeBytes,
+        cached: fs.existsSync(outFile),
+      });
+    });
+
+    if (input) run.stdin.write(input + "\n");
+    run.stdin.end();
+  }
+});
+
 app.post("/run-python", authMiddleware, (req, res) => {
   const { code, input } = req.body;
   if (!code) return res.status(400).json({ error: "No code provided" });

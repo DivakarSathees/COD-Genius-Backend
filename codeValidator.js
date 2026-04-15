@@ -9,7 +9,7 @@ function normalizeOutput(str) {
  * Runs solution_data against each sample and compares actual vs expected output.
  * @param {string} solution_data - Complete runnable source code
  * @param {Array}  samples       - Array of { input, output, difficulty, score }
- * @param {string} language      - "Java" | "Python" | "C#" | "C" etc.
+ * @param {string} language      - "Java" | "Python" | "C#" | "C" | "C++" etc.
  * @param {number} timeoutMs     - Per-test-case execution timeout in ms
  * @returns {Promise<object>}    - Validation summary with per-test results
  */
