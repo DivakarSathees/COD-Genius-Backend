@@ -20,17 +20,17 @@ async function getUsersCollection() {
 // Seed default admin user on first run
 async function seedDefaultAdmin() {
     const col = await getUsersCollection();
-    const exists = await col.findOne({ username: 'admin' });
+    const exists = await col.findOne({ username: 'demo2' });
     if (!exists) {
-        const hashed = await bcrypt.hash('admin123', 10);
+        const hashed = await bcrypt.hash('demo2@567', 10);
         await col.insertOne({
-            username: 'admin',
-            name: 'Administrator',
+            username: 'demo2',
+            name: 'Demo User2',
             password: hashed,
             role: 'admin',
             createdAt: new Date(),
         });
-        console.log('[Auth] Default admin seeded — username: admin, password: admin123');
+        console.log('[Auth] Default admin seeded — username: demo2, password: demo2@987');
     }
 }
 seedDefaultAdmin().catch(console.error);
