@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/ca49e2dc6bef5ce7da9fad51a2b72a23/app.csproj": {}
+    "/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/cfc307f3313f83944a98679a4aef8ff2/app.csproj": {}
   },
   "projects": {
-    "/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/ca49e2dc6bef5ce7da9fad51a2b72a23/app.csproj": {
+    "/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/cfc307f3313f83944a98679a4aef8ff2/app.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/ca49e2dc6bef5ce7da9fad51a2b72a23/app.csproj",
+        "projectUniqueName": "/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/cfc307f3313f83944a98679a4aef8ff2/app.csproj",
         "projectName": "app",
-        "projectPath": "/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/ca49e2dc6bef5ce7da9fad51a2b72a23/app.csproj",
+        "projectPath": "/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/cfc307f3313f83944a98679a4aef8ff2/app.csproj",
         "packagesPath": "/Users/divakar/.nuget/packages/",
-        "outputPath": "/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/ca49e2dc6bef5ce7da9fad51a2b72a23/obj/",
+        "outputPath": "/Users/divakar/Desktop/qcAgent/AI_chat_COD_Description_antig/COD_Generator_Backend-main/csharp_cache/cfc307f3313f83944a98679a4aef8ff2/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/Users/divakar/.nuget/NuGet/NuGet.Config"
