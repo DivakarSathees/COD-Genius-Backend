@@ -50,9 +50,9 @@ Rules: state exact print strings, decimal precision, no trailing spaces, describ
 - Footer MUST NOT contain: if/else chains, switch, processing loops, business logic, calculations, output formatting decisions
 
 ## P8 — Hidden Test Cases
-**Exactly 6 test cases — no more, no fewer.**
+**Exactly 9 test cases — no more, no fewer.**
 - Weightage in ASCENDING order totalling exactly 100: `Easy=10, Easy=10, Medium=15, Medium=15, Hard=25, Hard=25`
-- All 6 unique — no duplicate inputs or outputs
+- All 9 unique — no duplicate inputs or outputs
 - Manually verify each output against solution logic
 - No trailing spaces in expected outputs
 - Coverage: min, max, boundary, edge cases, invalid input (if applicable), at least 1 TC per output type
@@ -68,7 +68,7 @@ Rules: state exact print strings, decimal precision, no trailing spaces, describ
 1. Input/Output format lines MUST start with "The Nth line of input/output consists of..."
 2. Sample input/output blocks contain ONLY raw values
 3. NEVER include comments in solution code
-4. Exactly 6 hidden TCs, ascending weightage, total = 100
+4. Exactly 9 hidden TCs, ascending weightage, total = 100
 5. Footer must only contain: declarations, input reading, function calls, output printing
 6. Named character + real-world context required in every problem statement
 7. No trailing spaces anywhere — samples, expected outputs, solution output code
