@@ -10,7 +10,7 @@ const { aiCODGenerator } = require('./aiCODGenerator');
 const { uploadToPlatform } = require('./uploadToPlatform');
 // const { runCode } = require('./runCode');
 const axios = require('axios');
-const { aiSolutionGenerator } = require('./aiSolutionGenerator');
+const { aiSolutionGenerator, aiTestcaseGenerator } = require('./aiSolutionGenerator');
 const { validateSolution } = require('./codeValidator');
 const { AVAILABLE_MODELS } = require('./llmClient');
 const { router: authRouter } = require('./authRoutes');
@@ -85,6 +85,29 @@ app.post("/generate-solution", authMiddleware, async (req, res) => {
     } catch (error) {
         console.error("Error in /generate-solution:", error);
         return res.status(500).send({ error: "Internal server error." });
+    }
+});
+
+app.post("/regenerate-testcases", authMiddleware, async (req, res) => {
+    try {
+        const { question_data, solution_data, language, count, provider = 'groq', model } = req.body;
+        if (!question_data || !solution_data) {
+            return res.status(400).json({ error: "question_data and solution_data are required." });
+        }
+        const result = await aiTestcaseGenerator({ question_data, solution_data, language, count, provider, model });
+
+        // Run validation against the solution for all generated test cases
+        const validation = await validateSolution(
+            solution_data,
+            result.testcases,
+            language,
+            15000
+        );
+
+        return res.status(200).json({ response: result, validation });
+    } catch (error) {
+        console.error("Error in /regenerate-testcases:", error);
+        return res.status(500).json({ error: error.message || "Internal server error." });
     }
 });
 

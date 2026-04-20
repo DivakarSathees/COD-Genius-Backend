@@ -1,23 +1,27 @@
 import sys
-def is_prime_age(age):
-    if age <= 1:
+import math
+
+def is_prime(n):
+    if n <= 1:
         return False
-    if age == 2:
+    if n == 2:
         return True
-    if age % 2 == 0:
+    if n % 2 == 0:
         return False
-    max_divisor = int(age**0.5) + 1
-    for d in range(3, max_divisor, 2):
-        if age % d == 0:
+    sqrt_n = math.isqrt(n)
+    for i in range(3, sqrt_n + 1, 2):
+        if n % i == 0:
             return False
     return True
 
-for line in sys.stdin:
+def main():
     try:
-        age = int(line.strip())
-        if is_prime_age(age):
-            print("Valid")
-        else:
-            print("Invalid")
-    except ValueError:
+        lower_bound = int(sys.stdin.readline().strip())
+        upper_bound = int(sys.stdin.readline().strip())
+        prime_numbers = [str(i) for i in range(lower_bound, upper_bound + 1) if is_prime(i)]
+        print('\n'.join(prime_numbers))
+    except Exception as e:
         pass
+
+if __name__ == '__main__':
+    main()

@@ -84,6 +84,82 @@ Return only valid JSON. No explanations, no markdown.`;
     return prompt;
 }
 
+function buildTestcasePrompt({ question_data, solution_data, language, count, provider }) {
+    const isAzure = (provider || 'groq').toLowerCase() === 'azure';
+    const n = Math.max(1, Math.min(50, parseInt(count) || 15));
+
+    const returnShape = isAzure
+        ? `{ "items": { "testcases": [...], "samples": [...] } }`
+        : `{ "testcases": [...], "samples": [...] }`;
+
+    return `You are a test-case generator. Return ONLY valid JSON — no Markdown, no code fences, no commentary.
+
+Task: Given the problem description and the reference solution below, generate exactly ${n} distinct test cases.
+
+Rules:
+- Each test case must have: "input", "output", "difficulty" (Easy|Medium|Hard), "score" (number).
+- The "output" must be the EXACT output produced by running the provided solution against the "input".
+- Cover a wide range of scenarios: minimum values, maximum values, edge cases, typical cases, stress cases.
+- Scores of ALL test cases in "testcases" array must sum to exactly 100.
+- From the ${n} test cases, the AI must select the BEST representative ones as "samples" (sample I/O shown to users). Choose samples that together cover ALL possible input/output patterns and edge cases. Include at least 2 and at most 5 samples.
+- The "samples" array must be a SUBSET of "testcases" (same input/output values).
+
+Return this exact JSON shape:
+${returnShape}
+
+Where:
+- "testcases": array of all ${n} test cases: [{ "input": "...", "output": "...", "difficulty": "Easy|Medium|Hard", "score": number }]
+- "samples": array of selected sample I/O test cases (subset, same shape, score field can be 0)
+
+Problem:
+${question_data}
+
+Language: ${language || 'Java'}
+
+Reference Solution:
+${solution_data}
+
+Return only valid JSON. No explanations.`;
+}
+
+exports.aiTestcaseGenerator = async ({ question_data, solution_data, language, count, provider = 'groq', model }) => {
+    const isAzure = (provider || 'groq').toLowerCase() === 'azure';
+    const prompt = buildTestcasePrompt({ question_data, solution_data, language, count, provider });
+
+    const messages = [
+        {
+            role: 'system',
+            content: isAzure
+                ? 'You are a test-case generator. Always return valid JSON only, no markdown.'
+                : 'You are a test-case generator for programming problems.',
+        },
+        { role: 'user', content: prompt },
+    ];
+
+    const resultText = await callLLM({ provider, model, messages, jsonMode: isAzure });
+    console.log('[aiTestcaseGenerator] raw response (first 500):', resultText.substring(0, 500));
+
+    try {
+        let text = stripCodeFences(resultText);
+
+        // Azure wraps in { "items": { ... } }
+        try {
+            const obj = JSON.parse(text);
+            const inner = isAzure && obj?.items ? obj.items : obj;
+            if (inner?.testcases) return inner;
+        } catch (_) { /* fall through */ }
+
+        const repairedText = jsonrepair(text);
+        const parsed = JSON.parse(repairedText);
+        const inner = isAzure && parsed?.items ? parsed.items : parsed;
+        if (inner?.testcases) return inner;
+        throw new Error('Response missing testcases field');
+    } catch (e) {
+        console.error('[aiTestcaseGenerator] parse error:', e.message);
+        throw new Error('The AI response is not valid JSON.');
+    }
+};
+
 exports.aiSolutionGenerator = async (req) => {
     try {
         const { question_data, inputformat, outputformat, language,
