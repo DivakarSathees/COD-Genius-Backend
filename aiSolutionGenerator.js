@@ -45,7 +45,7 @@ function extractJSONArray(text) {
  * For Azure (jsonMode=true), the system message instructs the model to wrap in
  * { "items": [...] } so that response_format: json_object is satisfied.
  */
-function buildPrompt({ question_data, inputformat, outputformat, language, provider }) {
+function buildPrompt({ question_data, inputformat, outputformat, constraints, language, provider }) {
     const isAzure = (provider || 'groq').toLowerCase() === 'azure';
 
     const returnShape = isAzure
@@ -77,6 +77,7 @@ Question context:
 question_data: ${question_data}
 inputformat: ${inputformat}
 outputformat: ${outputformat}
+constraints: ${constraints || ''}
 language: ${language || 'Java'}
 
 Return only valid JSON. No explanations, no markdown.`;
@@ -162,11 +163,11 @@ exports.aiTestcaseGenerator = async ({ question_data, solution_data, language, c
 
 exports.aiSolutionGenerator = async (req) => {
     try {
-        const { question_data, inputformat, outputformat, language,
+        const { question_data, inputformat, outputformat, constraints, language,
                 provider = 'groq', model } = req;
 
         const isAzure = (provider || 'groq').toLowerCase() === 'azure';
-        const prompt = buildPrompt({ question_data, inputformat, outputformat, language, provider });
+        const prompt = buildPrompt({ question_data, inputformat, outputformat, constraints, language, provider });
 
         console.log('[aiSolutionGenerator] provider:', provider, '| model:', model);
         console.log('[aiSolutionGenerator] token count:', getTokenCount(prompt));

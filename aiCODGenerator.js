@@ -90,6 +90,7 @@ function buildCODPrompt({ prompt, format, language, topic, difficulty_level, cou
     "question_data": "<h3>Problem Statement: Bike Number Plate Verification System</h3><h4>Objective</h4><p>Create a Bike Number Plate Verification System using C# OOP principles...</p>",
     "inputformat": "<p>1. Number of bikes to be added to the system.</p>",
     "outputformat": "<p>For each bike, print the BikeID, Number Plate and whether the number plate is valid.</p>",
+    "constraints": "<ul><li>1 ≤ N ≤ 1000</li><li>Number plate length: 6–10 characters</li><li>Time limit: 1 second</li></ul>",
     "manual_difficulty": "Easy",
     "language": "C#"
   }`;
@@ -98,6 +99,7 @@ function buildCODPrompt({ prompt, format, language, topic, difficulty_level, cou
     "question_data": "<p><strong><u>Find the First Non-Repeating Character in a String</u></strong></p><p>Write a program that finds the first character that does not repeat.</p>",
     "inputformat": "<p>A single line containing a string s.</p>",
     "outputformat": "<ul><li>If a non-repeating character exists, print that character.</li><li>Otherwise, print: No non-repeating character found!</li></ul>",
+    "constraints": "<ul><li>1 ≤ |s| ≤ 10<sup>5</sup></li><li>s contains only lowercase English letters</li></ul>",
     "manual_difficulty": "Easy",
     "language": "C#"
   }`;
@@ -120,13 +122,13 @@ Rules:
 - Be scenario-based (real-world context).
 - Include a Title, Problem Description, and a clear Question section.
 - Specify Classes/Methods if needed.
-- Use HTML formatting for rich text (question_data, inputformat, outputformat).
+- Use HTML formatting for rich text (question_data, inputformat, outputformat, constraints).
 - Each item must be unique — different scenario, different problem title, different logic.
 - Do not repeat scenarios from previous responses.${excludeScenarios.length > 0 ? `\n- IMPORTANT: The following scenarios have already been generated for this user. Do NOT generate any question with a similar scenario, domain, or problem context — even if the title is different:\n${excludeScenarios.map(s => `  • ${s}`).join('\n')}` : ''}
 
 ${wrapperNote}
 The array must contain exactly ${count} item(s).
-Each item must have: "question_data", "inputformat", "outputformat", "manual_difficulty" (Easy|Medium|Hard), "language".
+Each item must have: "question_data", "inputformat", "outputformat", "constraints", "manual_difficulty" (Easy|Medium|Hard), "language".
 Do not include any explanations, extra text, or markdown formatting — return only valid JSON.`;
 
     return fullPrompt;
