@@ -57,7 +57,7 @@ app.post("/generate-cod-description", authMiddleware, async (req, res) => {
             language: req.body.language,
         }).catch(() => []);
 
-        const result = await aiCODGenerator({ ...req.body, excludeScenarios, createdBy: req.user.username });
+        const result = await aiCODGenerator({ ...req.body, excludeScenarios, createdBy: req.user.username, guidelinesContent: req.body.guidelinesContent || null });
         res.status(200).send({ response: result });
     } catch (error) {
         console.error("Error in /generate-cod:", error);
@@ -67,8 +67,8 @@ app.post("/generate-cod-description", authMiddleware, async (req, res) => {
 
 app.post("/generate-solution", authMiddleware, async (req, res) => {
     try {
-        const { autoValidate = false, ...solveParams } = req.body;
-        const response = await aiSolutionGenerator(solveParams);
+        const { autoValidate = false, guidelinesContent = null, ...solveParams } = req.body;
+        const response = await aiSolutionGenerator({ ...solveParams, guidelinesContent });
 
         if (autoValidate && response?.[0]) {
             const solution = response[0];
@@ -90,11 +90,11 @@ app.post("/generate-solution", authMiddleware, async (req, res) => {
 
 app.post("/regenerate-testcases", authMiddleware, async (req, res) => {
     try {
-        const { question_data, solution_data, language, count, provider = 'groq', model, useGuidelines = false } = req.body;
+        const { question_data, solution_data, language, count, provider = 'groq', model, useGuidelines = false, guidelinesContent = null } = req.body;
         if (!question_data || !solution_data) {
             return res.status(400).json({ error: "question_data and solution_data are required." });
         }
-        const result = await aiTestcaseGenerator({ question_data, solution_data, language, count, provider, model, useGuidelines });
+        const result = await aiTestcaseGenerator({ question_data, solution_data, language, count, provider, model, useGuidelines, guidelinesContent });
 
         // Run validation against the solution for all generated test cases
         const validation = await validateSolution(
@@ -114,11 +114,11 @@ app.post("/regenerate-testcases", authMiddleware, async (req, res) => {
 app.post("/refine-cod", authMiddleware, async (req, res) => {
     try {
         const { question_data, inputformat, outputformat, constraints, language,
-                refine_prompt, provider = 'groq', model, useGuidelines = false } = req.body;
+                refine_prompt, provider = 'groq', model, useGuidelines = false, guidelinesContent = null } = req.body;
         if (!question_data || !refine_prompt) {
             return res.status(400).json({ error: "question_data and refine_prompt are required." });
         }
-        const result = await aiCODRefiner({ question_data, inputformat, outputformat, constraints, language, refine_prompt, provider, model, useGuidelines });
+        const result = await aiCODRefiner({ question_data, inputformat, outputformat, constraints, language, refine_prompt, provider, model, useGuidelines, guidelinesContent });
         return res.status(200).json({ response: result });
     } catch (error) {
         console.error("Error in /refine-cod:", error);
@@ -1021,6 +1021,16 @@ app.post("/run-python", authMiddleware, (req, res) => {
 
 app.get("/models", (_req, res) => {
     res.status(200).json(AVAILABLE_MODELS);
+});
+
+app.get("/guidelines", (_req, res) => {
+    try {
+        const p = path.join(__dirname, 'questionGuidelines.md');
+        const content = fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '';
+        res.status(200).json({ content });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to read guidelines.' });
+    }
 });
 
 app.get("/sessions", authMiddleware, async (req, res) => {

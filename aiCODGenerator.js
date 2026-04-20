@@ -182,7 +182,7 @@ exports.aiCODGenerator = async (req) => {
         
         let { sessionId, prompt, format, language, topic, difficulty_level, count,
               provider = 'groq', model, excludeScenarios = [], createdBy = 'unknown',
-              useGuidelines = false } = req;
+              useGuidelines = false, guidelinesContent: incomingGuidelines = null } = req;
 
         count = Math.max(1, parseInt(count) || 1);
         const isAzure = (provider || 'groq').toLowerCase() === 'azure';
@@ -201,7 +201,7 @@ exports.aiCODGenerator = async (req) => {
         const tokenLimit = useGuidelines ? 32000 : 8192;
         if (tokenCount > tokenLimit) throw new Error('Input prompt exceeds maximum token limit.');
 
-        const guidelinesContent = useGuidelines ? loadGuidelines() : null;
+        const guidelinesContent = useGuidelines ? (incomingGuidelines || loadGuidelines()) : null;
         const systemContent = [
             isAzure
                 ? 'You are a COD Problem generator. Always return valid JSON only, no markdown.'
@@ -264,7 +264,7 @@ exports.aiCODGenerator = async (req) => {
 };
 
 exports.aiCODRefiner = async ({ question_data, inputformat, outputformat, constraints, language,
-                                 refine_prompt, provider = 'groq', model, useGuidelines = false }) => {
+                                 refine_prompt, provider = 'groq', model, useGuidelines = false, guidelinesContent: incomingGuidelines = null }) => {
     try {
         const isAzure = (provider || 'groq').toLowerCase() === 'azure';
         const prompt = buildRefinePrompt({ question_data, inputformat, outputformat, constraints, language, refine_prompt, provider });
@@ -275,7 +275,7 @@ exports.aiCODRefiner = async ({ question_data, inputformat, outputformat, constr
         const tokenLimit = useGuidelines ? 32000 : 8192;
         if (tokenCount > tokenLimit) throw new Error('Input prompt exceeds maximum token limit.');
 
-        const guidelinesContent = useGuidelines ? loadGuidelines() : null;
+        const guidelinesContent = useGuidelines ? (incomingGuidelines || loadGuidelines()) : null;
         const systemContent = [
             isAzure
                 ? 'You are a COD Problem refiner. Always return valid JSON only, no markdown.'

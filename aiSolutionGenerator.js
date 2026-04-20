@@ -151,11 +151,11 @@ ${solution_data}
 Return only valid JSON. No explanations.`;
 }
 
-exports.aiTestcaseGenerator = async ({ question_data, solution_data, language, count, provider = 'groq', model, useGuidelines = false }) => {
+exports.aiTestcaseGenerator = async ({ question_data, solution_data, language, count, provider = 'groq', model, useGuidelines = false, guidelinesContent: incomingGuidelines = null }) => {
     const isAzure = (provider || 'groq').toLowerCase() === 'azure';
     const prompt = buildTestcasePrompt({ question_data, solution_data, language, count, provider, useGuidelines });
 
-    const guidelinesContent = useGuidelines ? loadGuidelines() : null;
+    const guidelinesContent = useGuidelines ? (incomingGuidelines || loadGuidelines()) : null;
     const systemContent = [
         isAzure
             ? 'You are a test-case generator. Always return valid JSON only, no markdown.'
@@ -195,7 +195,7 @@ exports.aiTestcaseGenerator = async ({ question_data, solution_data, language, c
 exports.aiSolutionGenerator = async (req) => {
     try {
         const { question_data, inputformat, outputformat, constraints, language,
-                provider = 'groq', model, useGuidelines = false } = req;
+                provider = 'groq', model, useGuidelines = false, guidelinesContent: incomingGuidelines = null } = req;
 
         const isAzure = (provider || 'groq').toLowerCase() === 'azure';
         const prompt = buildPrompt({ question_data, inputformat, outputformat, constraints, language, provider, useGuidelines });
@@ -207,7 +207,7 @@ exports.aiSolutionGenerator = async (req) => {
         const tokenLimit = useGuidelines ? 32000 : 8192;
         if (tokenCount > tokenLimit) throw new Error('Input prompt exceeds maximum token limit.');
 
-        const guidelinesContent = useGuidelines ? loadGuidelines() : null;
+        const guidelinesContent = useGuidelines ? (incomingGuidelines || loadGuidelines()) : null;
         const systemContent = [
             isAzure
                 ? 'You are a programming solution generator. Always return valid JSON only, no markdown.'
