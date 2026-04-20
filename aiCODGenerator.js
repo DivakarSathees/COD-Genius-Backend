@@ -145,6 +145,34 @@ Do not include any explanations, extra text, or markdown formatting — return o
     return fullPrompt;
 }
 
+// ─── Refine prompt builder ────────────────────────────────────────────────────
+function buildRefinePrompt({ question_data, inputformat, outputformat, constraints, language, refine_prompt, provider }) {
+    const isAzure = (provider || 'groq').toLowerCase() === 'azure';
+
+    const wrapperNote = isAzure
+        ? `Wrap the result in a JSON object: { "item": { ...updated question... } }`
+        : `Return a single JSON object (not an array): { ...updated question... }`;
+
+    return `You are an AI that refines existing programming questions based on user instructions.
+
+Existing question:
+question_data: ${question_data}
+inputformat: ${inputformat || ''}
+outputformat: ${outputformat || ''}
+constraints: ${constraints || ''}
+language: ${language || 'Java'}
+
+User instruction: ${refine_prompt}
+
+Apply the instruction to update the question. Keep all fields and formatting intact unless the instruction specifically changes them.
+Use HTML formatting for rich text (question_data, inputformat, outputformat, constraints).
+The updated question must still be scenario-based with a clear Title, Problem Description, and Question section.
+
+${wrapperNote}
+The object must have: "question_data", "inputformat", "outputformat", "constraints", "manual_difficulty" (Easy|Medium|Hard), "language".
+Return only valid JSON. No explanations, no markdown.`;
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 exports.aiCODGenerator = async (req) => {
     try {
@@ -231,6 +259,58 @@ exports.aiCODGenerator = async (req) => {
 
     } catch (error) {
         console.error('Error in aiCODGenerator:', error);
+        throw error;
+    }
+};
+
+exports.aiCODRefiner = async ({ question_data, inputformat, outputformat, constraints, language,
+                                 refine_prompt, provider = 'groq', model, useGuidelines = false }) => {
+    try {
+        const isAzure = (provider || 'groq').toLowerCase() === 'azure';
+        const prompt = buildRefinePrompt({ question_data, inputformat, outputformat, constraints, language, refine_prompt, provider });
+
+        console.log('[aiCODRefiner] provider:', provider, '| model:', model, '| useGuidelines:', useGuidelines);
+
+        const tokenCount = getTokenCount(prompt);
+        const tokenLimit = useGuidelines ? 32000 : 8192;
+        if (tokenCount > tokenLimit) throw new Error('Input prompt exceeds maximum token limit.');
+
+        const guidelinesContent = useGuidelines ? loadGuidelines() : null;
+        const systemContent = [
+            isAzure
+                ? 'You are a COD Problem refiner. Always return valid JSON only, no markdown.'
+                : 'You are a COD Problem refiner.',
+            guidelinesContent ? `\n\nFOLLOW THESE QUESTION CREATION GUIDELINES STRICTLY:\n\n${guidelinesContent}` : '',
+        ].join('');
+
+        const messages = [
+            { role: 'system', content: systemContent },
+            { role: 'user', content: prompt },
+        ];
+
+        const resultText = await callLLM({ provider, model, messages, jsonMode: isAzure });
+        console.log('[aiCODRefiner] raw response (first 500):', resultText.substring(0, 500));
+
+        let text = stripCodeFences(resultText);
+        try {
+            const obj = JSON.parse(text);
+            // Azure wraps in { "item": { ... } }
+            const item = isAzure && obj?.item ? obj.item : obj;
+            if (item?.question_data) return item;
+            // If AI returned array, take first element
+            if (Array.isArray(item) && item[0]?.question_data) return item[0];
+            throw new Error('Response missing question_data field');
+        } catch (_) {
+            const { jsonrepair } = require('jsonrepair');
+            const repaired = JSON.parse(jsonrepair(text));
+            const item = isAzure && repaired?.item ? repaired.item : repaired;
+            if (item?.question_data) return item;
+            if (Array.isArray(item) && item[0]?.question_data) return item[0];
+            throw new Error('The AI response is not valid JSON.');
+        }
+
+    } catch (error) {
+        console.error('Error in aiCODRefiner:', error);
         throw error;
     }
 };

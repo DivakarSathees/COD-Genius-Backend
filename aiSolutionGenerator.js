@@ -56,12 +56,21 @@ function extractJSONArray(text) {
  * For Azure (jsonMode=true), the system message instructs the model to wrap in
  * { "items": [...] } so that response_format: json_object is satisfied.
  */
-function buildPrompt({ question_data, inputformat, outputformat, constraints, language, provider }) {
+function buildPrompt({ question_data, inputformat, outputformat, constraints, language, provider, useGuidelines = false }) {
     const isAzure = (provider || 'groq').toLowerCase() === 'azure';
 
     const returnShape = isAzure
         ? `{ "items": [ { "solution_data": "...", "samples": [...], "io_spec": {...} } ] }`
         : `[ { "solution_data": "...", "samples": [...], "io_spec": {...} } ]`;
+
+    const tcRules = useGuidelines
+        ? `- Produce EXACTLY 6 distinct test cases ordered by ascending difficulty (Easy → Hard).
+- Weightage MUST be in ascending order and total exactly 100. Use this pattern: Easy=10, Easy=10, Medium=15, Medium=15, Hard=25, Hard=25 (adjust if needed but total must be 100 and order must be ascending).
+- From the 6 test cases, mark EXACTLY 2 to 3 as "isSampleIO": true — these are shown to students and must each cover a DIFFERENT output scenario (e.g. typical case, edge/boundary case, error/invalid case if applicable). Set "isSampleIO": false for the rest.
+- No duplicate inputs or outputs across test cases.
+- Manually verify each test case output against the solution logic.`
+        : `- Produce 10 to 15 distinct sample input/output pairs that cover edge cases, with a score per sample summing to 100 (Easy=low, Medium=normal, Hard=high score).
+- Add "isSampleIO": false to all samples (user will select manually).`;
 
     const prompt = `You are an assistant that must return ONLY valid JSON (no Markdown, no code fences, no commentary).
 Infer the most appropriate programming language from the question; if unclear, default to Java.
@@ -71,7 +80,7 @@ Requirements:
 - The program must read dynamic user input from STDIN and print to STDOUT exactly as specified.
 - Do NOT include any placeholder text like "...", "your code here", etc.
 - All special characters inside JSON strings (newlines, tabs, backslashes, double quotes) MUST be properly escaped.
-- Produce 10 to 15 distinct sample input/output pairs that cover edge cases, with a score per sample summing to 100 (Easy=low, Medium=normal, Hard=high score).
+${tcRules}
 - Ensure the JSON is syntactically valid.
 - STRICT JAVA RULE: If the language is Java, the public class name MUST be exactly "Main" (i.e. "public class Main"). No other class name is allowed as the entry point.
 - STRICT C++ RULE: If the language is C++, use a standard "int main()" entry point. Include necessary headers (e.g. #include <iostream>, #include <vector>, etc.) and use "using namespace std;" for simplicity. The program must compile with g++ without errors.
@@ -81,7 +90,7 @@ ${returnShape}
 
 Where each item has:
 - "solution_data": complete runnable source code as a properly escaped JSON string
-- "samples": array of { "input": "...", "output": "...", "difficulty": "Easy|Medium|Hard", "score": number }
+- "samples": array of { "input": "...", "output": "...", "difficulty": "Easy|Medium|Hard", "score": number, "isSampleIO": boolean }
 - "io_spec": { "input_format": "...", "output_format": "..." }
 
 Question context:
@@ -96,13 +105,22 @@ Return only valid JSON. No explanations, no markdown.`;
     return prompt;
 }
 
-function buildTestcasePrompt({ question_data, solution_data, language, count, provider }) {
+function buildTestcasePrompt({ question_data, solution_data, language, count, provider, useGuidelines = false }) {
     const isAzure = (provider || 'groq').toLowerCase() === 'azure';
-    const n = Math.max(1, Math.min(50, parseInt(count) || 15));
+    const n = useGuidelines ? 6 : Math.max(1, Math.min(50, parseInt(count) || 15));
 
     const returnShape = isAzure
         ? `{ "items": { "testcases": [...], "samples": [...] } }`
         : `{ "testcases": [...], "samples": [...] }`;
+
+    const guidelinesRules = useGuidelines
+        ? `- Generate EXACTLY 6 test cases ordered by ascending difficulty: 2 Easy, 2 Medium, 2 Hard.
+- Weightage in ASCENDING order totalling exactly 100: Easy=10, Easy=10, Medium=15, Medium=15, Hard=25, Hard=25.
+- No duplicate inputs or outputs across the 6 test cases.
+- Manually verify each test case output against the solution logic.
+- Select EXACTLY 2 to 3 test cases as "samples" (shown to students). Each sample must cover a DIFFERENT output scenario (e.g. typical, edge/boundary, error/invalid). They must be a subset of testcases.`
+        : `- Scores of ALL test cases must sum to exactly 100.
+- Select 2 to 5 representative test cases as "samples" covering all possible input/output patterns.`;
 
     return `You are a test-case generator. Return ONLY valid JSON — no Markdown, no code fences, no commentary.
 
@@ -112,8 +130,7 @@ Rules:
 - Each test case must have: "input", "output", "difficulty" (Easy|Medium|Hard), "score" (number).
 - The "output" must be the EXACT output produced by running the provided solution against the "input".
 - Cover a wide range of scenarios: minimum values, maximum values, edge cases, typical cases, stress cases.
-- Scores of ALL test cases in "testcases" array must sum to exactly 100.
-- From the ${n} test cases, the AI must select the BEST representative ones as "samples" (sample I/O shown to users). Choose samples that together cover ALL possible input/output patterns and edge cases. Include at least 2 and at most 5 samples.
+${guidelinesRules}
 - The "samples" array must be a SUBSET of "testcases" (same input/output values).
 
 Return this exact JSON shape:
@@ -121,7 +138,7 @@ ${returnShape}
 
 Where:
 - "testcases": array of all ${n} test cases: [{ "input": "...", "output": "...", "difficulty": "Easy|Medium|Hard", "score": number }]
-- "samples": array of selected sample I/O test cases (subset, same shape, score field can be 0)
+- "samples": array of selected sample I/O test cases (subset, same shape)
 
 Problem:
 ${question_data}
@@ -136,7 +153,7 @@ Return only valid JSON. No explanations.`;
 
 exports.aiTestcaseGenerator = async ({ question_data, solution_data, language, count, provider = 'groq', model, useGuidelines = false }) => {
     const isAzure = (provider || 'groq').toLowerCase() === 'azure';
-    const prompt = buildTestcasePrompt({ question_data, solution_data, language, count, provider });
+    const prompt = buildTestcasePrompt({ question_data, solution_data, language, count, provider, useGuidelines });
 
     const guidelinesContent = useGuidelines ? loadGuidelines() : null;
     const systemContent = [
@@ -181,7 +198,7 @@ exports.aiSolutionGenerator = async (req) => {
                 provider = 'groq', model, useGuidelines = false } = req;
 
         const isAzure = (provider || 'groq').toLowerCase() === 'azure';
-        const prompt = buildPrompt({ question_data, inputformat, outputformat, constraints, language, provider });
+        const prompt = buildPrompt({ question_data, inputformat, outputformat, constraints, language, provider, useGuidelines });
 
         console.log('[aiSolutionGenerator] provider:', provider, '| model:', model, '| useGuidelines:', useGuidelines);
         console.log('[aiSolutionGenerator] token count:', getTokenCount(prompt));

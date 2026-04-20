@@ -5,7 +5,7 @@ const app = express();
 const port = 3000;
 const fs = require('fs');
 const path = require('path');
-const { aiCODGenerator } = require('./aiCODGenerator');
+const { aiCODGenerator, aiCODRefiner } = require('./aiCODGenerator');
 // const { aiVerifyMcq } = require('./aiVerifyMcq');
 const { uploadToPlatform } = require('./uploadToPlatform');
 // const { runCode } = require('./runCode');
@@ -107,6 +107,21 @@ app.post("/regenerate-testcases", authMiddleware, async (req, res) => {
         return res.status(200).json({ response: result, validation });
     } catch (error) {
         console.error("Error in /regenerate-testcases:", error);
+        return res.status(500).json({ error: error.message || "Internal server error." });
+    }
+});
+
+app.post("/refine-cod", authMiddleware, async (req, res) => {
+    try {
+        const { question_data, inputformat, outputformat, constraints, language,
+                refine_prompt, provider = 'groq', model, useGuidelines = false } = req.body;
+        if (!question_data || !refine_prompt) {
+            return res.status(400).json({ error: "question_data and refine_prompt are required." });
+        }
+        const result = await aiCODRefiner({ question_data, inputformat, outputformat, constraints, language, refine_prompt, provider, model, useGuidelines });
+        return res.status(200).json({ response: result });
+    } catch (error) {
+        console.error("Error in /refine-cod:", error);
         return res.status(500).json({ error: error.message || "Internal server error." });
     }
 });
