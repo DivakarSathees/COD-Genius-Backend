@@ -8,13 +8,9 @@ const { v4: uuidv4 } = require('uuid');
 const { callLLM } = require('./llmClient');
 const { saveGeneratedQuestion } = require('./questionRegistry');
 
-let _guidelinesCache = null;
 function loadGuidelines() {
-    if (!_guidelinesCache) {
-        const p = path.join(__dirname, 'questionGuidelines.md');
-        _guidelinesCache = fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '';
-    }
-    return _guidelinesCache;
+    const p = path.join(__dirname, 'questionGuidelines.md');
+    return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '';
 }
 
 function getTokenCount(input) {

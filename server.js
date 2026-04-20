@@ -57,7 +57,7 @@ app.post("/generate-cod-description", authMiddleware, async (req, res) => {
             language: req.body.language,
         }).catch(() => []);
 
-        const result = await aiCODGenerator({ ...req.body, excludeScenarios, createdBy: req.user.username, guidelinesContent: req.body.guidelinesContent || null });
+        const result = await aiCODGenerator({ ...req.body, excludeScenarios, createdBy: req.user.username });
         res.status(200).send({ response: result });
     } catch (error) {
         console.error("Error in /generate-cod:", error);
@@ -1358,7 +1358,7 @@ app.post("/generate-batch", authMiddleware, async (req, res) => {
         const batchResults = [];
 
         // Step 2 & 3: For each problem, generate solution + validate (sequential to avoid rate limits)
-        const { provider, model } = codGenParams;
+        const { provider, model, useGuidelines = false, guidelinesContent = null } = codGenParams;
         for (const problem of problems) {
             let solution = null;
             let validation = null;
@@ -1373,6 +1373,8 @@ app.post("/generate-batch", authMiddleware, async (req, res) => {
                     manual_difficulty: problem.manual_difficulty,
                     provider,
                     model,
+                    useGuidelines,
+                    guidelinesContent,
                 });
 
                 solution = solutionResult?.[0] || null;
