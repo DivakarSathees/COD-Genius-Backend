@@ -1,7 +1,18 @@
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const encoder = require('gpt-3-encoder');
 const { jsonrepair } = require('jsonrepair');
 const { callLLM } = require('./llmClient');
+
+let _guidelinesCache = null;
+function loadGuidelines() {
+    if (!_guidelinesCache) {
+        const p = path.join(__dirname, 'questionGuidelines.md');
+        _guidelinesCache = fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '';
+    }
+    return _guidelinesCache;
+}
 
 function getTokenCount(input) {
     const encoded = encoder.encode(input);
@@ -123,17 +134,20 @@ ${solution_data}
 Return only valid JSON. No explanations.`;
 }
 
-exports.aiTestcaseGenerator = async ({ question_data, solution_data, language, count, provider = 'groq', model }) => {
+exports.aiTestcaseGenerator = async ({ question_data, solution_data, language, count, provider = 'groq', model, useGuidelines = false }) => {
     const isAzure = (provider || 'groq').toLowerCase() === 'azure';
     const prompt = buildTestcasePrompt({ question_data, solution_data, language, count, provider });
 
+    const guidelinesContent = useGuidelines ? loadGuidelines() : null;
+    const systemContent = [
+        isAzure
+            ? 'You are a test-case generator. Always return valid JSON only, no markdown.'
+            : 'You are a test-case generator for programming problems.',
+        guidelinesContent ? `\n\nFOLLOW THESE QUESTION CREATION GUIDELINES STRICTLY (especially Parameter 5: Sample Input, Parameter 6: Sample Output, Parameter 8: Hidden Test Cases rules):\n\n${guidelinesContent}` : '',
+    ].join('');
+
     const messages = [
-        {
-            role: 'system',
-            content: isAzure
-                ? 'You are a test-case generator. Always return valid JSON only, no markdown.'
-                : 'You are a test-case generator for programming problems.',
-        },
+        { role: 'system', content: systemContent },
         { role: 'user', content: prompt },
     ];
 
@@ -164,24 +178,28 @@ exports.aiTestcaseGenerator = async ({ question_data, solution_data, language, c
 exports.aiSolutionGenerator = async (req) => {
     try {
         const { question_data, inputformat, outputformat, constraints, language,
-                provider = 'groq', model } = req;
+                provider = 'groq', model, useGuidelines = false } = req;
 
         const isAzure = (provider || 'groq').toLowerCase() === 'azure';
         const prompt = buildPrompt({ question_data, inputformat, outputformat, constraints, language, provider });
 
-        console.log('[aiSolutionGenerator] provider:', provider, '| model:', model);
+        console.log('[aiSolutionGenerator] provider:', provider, '| model:', model, '| useGuidelines:', useGuidelines);
         console.log('[aiSolutionGenerator] token count:', getTokenCount(prompt));
 
         const tokenCount = getTokenCount(prompt);
-        if (tokenCount > 8192) throw new Error('Input prompt exceeds maximum token limit.');
+        const tokenLimit = useGuidelines ? 32000 : 8192;
+        if (tokenCount > tokenLimit) throw new Error('Input prompt exceeds maximum token limit.');
+
+        const guidelinesContent = useGuidelines ? loadGuidelines() : null;
+        const systemContent = [
+            isAzure
+                ? 'You are a programming solution generator. Always return valid JSON only, no markdown.'
+                : 'You are a Compiler-based Problem Solution generator.',
+            guidelinesContent ? `\n\nFOLLOW THESE QUESTION CREATION GUIDELINES STRICTLY (especially Parameter 7: Solution rules, Parameter 8: Hidden Test Cases rules):\n\n${guidelinesContent}` : '',
+        ].join('');
 
         const messages = [
-            {
-                role: 'system',
-                content: isAzure
-                    ? 'You are a programming solution generator. Always return valid JSON only, no markdown.'
-                    : 'You are a Compiler-based Problem Solution generator.',
-            },
+            { role: 'system', content: systemContent },
             { role: 'user', content: prompt },
         ];
 

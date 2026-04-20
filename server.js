@@ -90,11 +90,11 @@ app.post("/generate-solution", authMiddleware, async (req, res) => {
 
 app.post("/regenerate-testcases", authMiddleware, async (req, res) => {
     try {
-        const { question_data, solution_data, language, count, provider = 'groq', model } = req.body;
+        const { question_data, solution_data, language, count, provider = 'groq', model, useGuidelines = false } = req.body;
         if (!question_data || !solution_data) {
             return res.status(400).json({ error: "question_data and solution_data are required." });
         }
-        const result = await aiTestcaseGenerator({ question_data, solution_data, language, count, provider, model });
+        const result = await aiTestcaseGenerator({ question_data, solution_data, language, count, provider, model, useGuidelines });
 
         // Run validation against the solution for all generated test cases
         const validation = await validateSolution(

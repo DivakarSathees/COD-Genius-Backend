@@ -1,10 +1,21 @@
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const encoder = require('gpt-3-encoder');
 const { jsonrepair } = require('jsonrepair');
 const { MongoClient } = require('mongodb');
 const { v4: uuidv4 } = require('uuid');
 const { callLLM } = require('./llmClient');
 const { saveGeneratedQuestion } = require('./questionRegistry');
+
+let _guidelinesCache = null;
+function loadGuidelines() {
+    if (!_guidelinesCache) {
+        const p = path.join(__dirname, 'questionGuidelines.md');
+        _guidelinesCache = fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '';
+    }
+    return _guidelinesCache;
+}
 
 function getTokenCount(input) {
     const encoded = encoder.encode(input);
@@ -80,7 +91,7 @@ function extractJSONArray(text) {
 }
 
 // ─── Prompt builder ───────────────────────────────────────────────────────────
-function buildCODPrompt({ prompt, format, language, topic, difficulty_level, count, provider, excludeScenarios = [] }) {
+function buildCODPrompt({ prompt, format, language, topic, difficulty_level, count, provider, excludeScenarios = [], useGuidelines = false }) {
     const isAzure = (provider || 'groq').toLowerCase() === 'azure';
 
     let basePrompt = prompt ||
@@ -137,8 +148,13 @@ Do not include any explanations, extra text, or markdown formatting — return o
 // ─── Main export ──────────────────────────────────────────────────────────────
 exports.aiCODGenerator = async (req) => {
     try {
+        console.log("Received request for aiCODGenerator");
+        console.log(req);
+        
+        
         let { sessionId, prompt, format, language, topic, difficulty_level, count,
-              provider = 'groq', model, excludeScenarios = [], createdBy = 'unknown' } = req;
+              provider = 'groq', model, excludeScenarios = [], createdBy = 'unknown',
+              useGuidelines = false } = req;
 
         count = Math.max(1, parseInt(count) || 1);
         const isAzure = (provider || 'groq').toLowerCase() === 'azure';
@@ -149,20 +165,27 @@ exports.aiCODGenerator = async (req) => {
 
         const history = await getConversation(sessionId);
 
-        const fullPrompt = buildCODPrompt({ prompt, format, language, topic, difficulty_level, count, provider, excludeScenarios });
+        const fullPrompt = buildCODPrompt({ prompt, format, language, topic, difficulty_level, count, provider, excludeScenarios, useGuidelines });
 
-        console.log('[aiCODGenerator] provider:', provider, '| model:', model, '| count:', count);
+        console.log('[aiCODGenerator] provider:', provider, '| model:', model, '| count:', count, '| useGuidelines:', useGuidelines);
 
         const tokenCount = getTokenCount(fullPrompt);
-        if (tokenCount > 8192) throw new Error('Input prompt exceeds maximum token limit.');
+        const tokenLimit = useGuidelines ? 32000 : 8192;
+        if (tokenCount > tokenLimit) throw new Error('Input prompt exceeds maximum token limit.');
+
+        const guidelinesContent = useGuidelines ? loadGuidelines() : null;
+        const systemContent = [
+            isAzure
+                ? 'You are a COD Problem generator. Always return valid JSON only, no markdown.'
+                : 'You are a COD Problem generator.',
+            guidelinesContent ? `\n\nFOLLOW THESE QUESTION CREATION GUIDELINES STRICTLY:\n\n${guidelinesContent}` : '',
+        ].join('');
+
+        // console.log("systemContent: ", systemContent);
+        console.log("fullPrompt: ", fullPrompt);
 
         const messages = [
-            {
-                role: 'system',
-                content: isAzure
-                    ? 'You are a COD Problem generator. Always return valid JSON only, no markdown.'
-                    : 'You are a COD Problem generator.',
-            },
+            { role: 'system', content: systemContent },
             ...history.map((msg) => ({ role: msg.role, content: msg.content })),
             { role: 'user', content: fullPrompt },
         ];
