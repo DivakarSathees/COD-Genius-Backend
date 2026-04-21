@@ -60,9 +60,9 @@ function buildPrompt({ question_data, inputformat, outputformat, constraints, la
         : `[ { "solution_data": "...", "samples": [...], "io_spec": {...} } ]`;
 
     const tcRules = useGuidelines
-        ? `- Produce EXACTLY 6 distinct test cases ordered by ascending difficulty (Easy → Hard).
+        ? `- Produce EXACTLY 9 distinct test cases ordered by ascending difficulty (Easy → Hard).
 - Weightage MUST be in ascending order and total exactly 100. Use this pattern: Easy=10, Easy=10, Medium=15, Medium=15, Hard=25, Hard=25 (adjust if needed but total must be 100 and order must be ascending).
-- From the 6 test cases, mark EXACTLY 2 to 3 as "isSampleIO": true — these are shown to students and must each cover a DIFFERENT output scenario (e.g. typical case, edge/boundary case, error/invalid case if applicable). Set "isSampleIO": false for the rest.
+- From the 9 test cases, mark EXACTLY 2 to 3 as "isSampleIO": true — these are shown to students and must each cover a DIFFERENT output scenario (e.g. typical case, edge/boundary case, error/invalid case if applicable). Set "isSampleIO": false for the rest.
 - No duplicate inputs or outputs across test cases.
 - Manually verify each test case output against the solution logic.`
         : `- Produce 10 to 15 distinct sample input/output pairs that cover edge cases, with a score per sample summing to 100 (Easy=low, Medium=normal, Hard=high score).
@@ -103,16 +103,16 @@ Return only valid JSON. No explanations, no markdown.`;
 
 function buildTestcasePrompt({ question_data, solution_data, language, count, provider, useGuidelines = false }) {
     const isAzure = (provider || 'groq').toLowerCase() === 'azure';
-    const n = useGuidelines ? 6 : Math.max(1, Math.min(50, parseInt(count) || 15));
+    const n = useGuidelines ? 9 : Math.max(1, Math.min(50, parseInt(count) || 15));
 
     const returnShape = isAzure
         ? `{ "items": { "testcases": [...], "samples": [...] } }`
         : `{ "testcases": [...], "samples": [...] }`;
 
     const guidelinesRules = useGuidelines
-        ? `- Generate EXACTLY 6 test cases ordered by ascending difficulty: 2 Easy, 2 Medium, 2 Hard.
-- Weightage in ASCENDING order totalling exactly 100: Easy=10, Easy=10, Medium=15, Medium=15, Hard=25, Hard=25.
-- No duplicate inputs or outputs across the 6 test cases.
+        ? `- Generate EXACTLY 9 test cases ordered by ascending difficulty: 3 Easy, 3 Medium, 3 Hard.
+- Weightage in ASCENDING order totalling exactly 100: Easy=10, Easy=10, Easy=10, Medium=15, Medium=15, Medium=15, Hard=25, Hard=25, Hard=25.
+- No duplicate inputs or outputs across the 9 test cases.
 - Manually verify each test case output against the solution logic.
 - Select EXACTLY 2 to 3 test cases as "samples" (shown to students). Each sample must cover a DIFFERENT output scenario (e.g. typical, edge/boundary, error/invalid). They must be a subset of testcases.`
         : `- Scores of ALL test cases must sum to exactly 100.
