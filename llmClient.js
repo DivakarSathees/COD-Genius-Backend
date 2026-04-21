@@ -84,6 +84,16 @@ function toGeminiContents(messages) {
  * @param {boolean} [opts.jsonMode=false]
  * @returns {Promise<string>} raw text content from the model
  */
+function normalizeUsage(raw, provider, modelId) {
+  return {
+    provider,
+    model: modelId,
+    prompt_tokens:     raw?.prompt_tokens     ?? raw?.promptTokenCount     ?? 0,
+    completion_tokens: raw?.completion_tokens ?? raw?.candidatesTokenCount ?? 0,
+    total_tokens:      raw?.total_tokens      ?? raw?.totalTokenCount      ?? 0,
+  };
+}
+
 async function callLLM({ provider = 'groq', model, messages, jsonMode = false }) {
   const prov = (provider || 'groq').toLowerCase().trim();
 
@@ -99,7 +109,10 @@ async function callLLM({ provider = 'groq', model, messages, jsonMode = false })
     const params = { model: deployment, messages };
     if (jsonMode) params.response_format = { type: 'json_object' };
     const response = await azureClient.chat.completions.create(params);
-    return response.choices[0].message.content;
+    return {
+      text: response.choices[0].message.content,
+      usage: normalizeUsage(response.usage, 'azure', deployment),
+    };
 
   // ── Gemini (REST API) ──────────────────────────────────────────────────────
   } else if (prov === 'gemini') {
@@ -118,7 +131,10 @@ async function callLLM({ provider = 'groq', model, messages, jsonMode = false })
       },
     });
 
-    return response.data.candidates[0].content.parts[0].text;
+    return {
+      text: response.data.candidates[0].content.parts[0].text,
+      usage: normalizeUsage(response.data.usageMetadata, 'gemini', chosenModel),
+    };
 
   // ── GitHub Models ──────────────────────────────────────────────────────────
   } else if (prov === 'github') {
@@ -132,14 +148,20 @@ async function callLLM({ provider = 'groq', model, messages, jsonMode = false })
         'Authorization': `Bearer ${GITHUB_TOKEN}`,
       },
     });
-    return response.data.choices[0].message.content;
+    return {
+      text: response.data.choices[0].message.content,
+      usage: normalizeUsage(response.data.usage, 'github', chosenModel),
+    };
 
   // ── Groq (default) ─────────────────────────────────────────────────────────
   } else {
     const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
     const chosenModel = model || DEFAULT_GROQ_MODEL;
     const response = await groqClient.chat.completions.create({ model: chosenModel, messages });
-    return response.choices[0].message.content;
+    return {
+      text: response.choices[0].message.content,
+      usage: normalizeUsage(response.usage, 'groq', chosenModel),
+    };
   }
 }
 

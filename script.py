@@ -1,35 +1,26 @@
-import math
+import sys
 
-class Batch:
-    def __init__(self, count):
-        self.count = count
+def calculate_average_attendance(attendees):
+    return round(sum(attendees) / len(attendees), 1)
 
-    def is_masterpiece(self):
-        if self.count < 2:
-            return False
-        for i in range(2, int(math.sqrt(self.count)) + 1):
-            if self.count % i == 0:
-                return False
-        return True
+def main():
+    try:
+        n = int(input().strip())
+        if n < 1 or n > 24:
+            print("Invalid input")
+            return
 
-class BatchValidator:
-    def __init__(self, batches):
-        self.batches = batches
+        attendees = list(map(int, input().strip().split()))
 
-    def classify_all(self):
-        classifications = []
-        for batch in self.batches:
-            if batch.is_masterpiece():
-                classifications.append(f"Batch {batch.count}: Masterpiece")
-            else:
-                classifications.append(f"Batch {batch.count}: Standard")
-        return classifications
+        if len(attendees) != n or any(a < 0 or a > 1000 for a in attendees):
+            print("Invalid input")
+            return
+
+        average = calculate_average_attendance(attendees)
+        print(f"Average attendance: {average}")
+
+    except Exception:
+        print("Invalid input")
 
 if __name__ == "__main__":
-    n = int(input())
-    counts = list(map(int, input().split()))
-    batches = [Batch(count) for count in counts]
-    validator = BatchValidator(batches)
-    results = validator.classify_all()
-    for result in results:
-        print(result)
+    main()

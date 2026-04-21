@@ -214,7 +214,7 @@ exports.aiCODGenerator = async (req) => {
             { role: 'user', content: fullPrompt },
         ];
 
-        const resultText = await callLLM({ provider, model, messages, jsonMode: isAzure });
+        const { text: resultText, usage } = await callLLM({ provider, model, messages, jsonMode: isAzure });
         console.log('[aiCODGenerator] raw response (first 500):', resultText.substring(0, 500));
 
         await saveConversation(sessionId, 'user', fullPrompt);
@@ -246,7 +246,7 @@ exports.aiCODGenerator = async (req) => {
                 }
             }
 
-            return { sessionId, result: parsedJson };
+            return { sessionId, result: parsedJson, usage };
         } catch (e) {
             console.error('[aiCODGenerator] Failed to parse JSON:', e.message);
             console.error('[aiCODGenerator] Raw LLM response (first 2000):', resultText.substring(0, 2000));
@@ -284,24 +284,22 @@ exports.aiCODRefiner = async ({ question_data, inputformat, outputformat, constr
             { role: 'user', content: prompt },
         ];
 
-        const resultText = await callLLM({ provider, model, messages, jsonMode: isAzure });
+        const { text: resultText, usage } = await callLLM({ provider, model, messages, jsonMode: isAzure });
         console.log('[aiCODRefiner] raw response (first 500):', resultText.substring(0, 500));
 
         let text = stripCodeFences(resultText);
         try {
             const obj = JSON.parse(text);
-            // Azure wraps in { "item": { ... } }
             const item = isAzure && obj?.item ? obj.item : obj;
-            if (item?.question_data) return item;
-            // If AI returned array, take first element
-            if (Array.isArray(item) && item[0]?.question_data) return item[0];
+            if (item?.question_data) return { result: item, usage };
+            if (Array.isArray(item) && item[0]?.question_data) return { result: item[0], usage };
             throw new Error('Response missing question_data field');
         } catch (_) {
             const { jsonrepair } = require('jsonrepair');
             const repaired = JSON.parse(jsonrepair(text));
             const item = isAzure && repaired?.item ? repaired.item : repaired;
-            if (item?.question_data) return item;
-            if (Array.isArray(item) && item[0]?.question_data) return item[0];
+            if (item?.question_data) return { result: item, usage };
+            if (Array.isArray(item) && item[0]?.question_data) return { result: item[0], usage };
             throw new Error('The AI response is not valid JSON.');
         }
 

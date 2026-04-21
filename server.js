@@ -22,6 +22,26 @@ const { spawn, spawnSync } = require("child_process");
 require('dotenv').config();
 const { MongoClient } = require('mongodb');
 
+// ── Persistent token-usage DB client ─────────────────────────────────────────
+const _tuClient = new MongoClient(process.env.MONGO_URI);
+async function _tuCol() {
+    if (!_tuClient.topology || !_tuClient.topology.isConnected()) await _tuClient.connect();
+    return _tuClient.db('aiMemoryDB').collection('tokenUsage');
+}
+async function saveTokenUsage(usage) {
+    if (!usage?.model) return;
+    try {
+        const col = await _tuCol();
+        await col.updateOne(
+            { _id: `${usage.provider}/${usage.model}` },
+            {
+                $inc: { prompt_tokens: usage.prompt_tokens || 0, completion_tokens: usage.completion_tokens || 0, total_tokens: usage.total_tokens || 0, calls: 1 },
+                $set:  { provider: usage.provider, model: usage.model, lastUpdated: new Date() },
+            },
+            { upsert: true }
+        );
+    } catch (e) { console.warn('[tokenUsage] save failed:', e.message); }
+}
 
 
 app.use(cors({
@@ -57,8 +77,9 @@ app.post("/generate-cod-description", authMiddleware, async (req, res) => {
             language: req.body.language,
         }).catch(() => []);
 
-        const result = await aiCODGenerator({ ...req.body, excludeScenarios, createdBy: req.user.username });
-        res.status(200).send({ response: result });
+        const { sessionId, result, usage } = await aiCODGenerator({ ...req.body, excludeScenarios, createdBy: req.user.username });
+        saveTokenUsage(usage);
+        res.status(200).send({ response: { sessionId, result }, usage });
     } catch (error) {
         console.error("Error in /generate-cod:", error);
         return res.status(500).send({ error: "Internal server error." });
@@ -68,20 +89,21 @@ app.post("/generate-cod-description", authMiddleware, async (req, res) => {
 app.post("/generate-solution", authMiddleware, async (req, res) => {
     try {
         const { autoValidate = false, guidelinesContent = null, ...solveParams } = req.body;
-        const response = await aiSolutionGenerator({ ...solveParams, guidelinesContent });
+        const { result: parsedResult, usage } = await aiSolutionGenerator({ ...solveParams, guidelinesContent });
+        saveTokenUsage(usage);
 
-        if (autoValidate && response?.[0]) {
-            const solution = response[0];
+        if (autoValidate && parsedResult?.[0]) {
+            const solution = parsedResult[0];
             const validation = await validateSolution(
                 solution.solution_data,
                 solution.samples,
                 solveParams.language,
                 15000
             );
-            return res.status(200).json({ response, validation });
+            return res.status(200).json({ response: parsedResult, usage, validation });
         }
 
-        res.status(200).json({ response });
+        res.status(200).json({ response: parsedResult, usage });
     } catch (error) {
         console.error("Error in /generate-solution:", error);
         return res.status(500).send({ error: "Internal server error." });
@@ -94,17 +116,12 @@ app.post("/regenerate-testcases", authMiddleware, async (req, res) => {
         if (!question_data || !solution_data) {
             return res.status(400).json({ error: "question_data and solution_data are required." });
         }
-        const result = await aiTestcaseGenerator({ question_data, solution_data, language, count, provider, model, useGuidelines, guidelinesContent });
+        const { result: tcResult, usage } = await aiTestcaseGenerator({ question_data, solution_data, language, count, provider, model, useGuidelines, guidelinesContent });
+        saveTokenUsage(usage);
 
-        // Run validation against the solution for all generated test cases
-        const validation = await validateSolution(
-            solution_data,
-            result.testcases,
-            language,
-            15000
-        );
+        const validation = await validateSolution(solution_data, tcResult.testcases, language, 15000);
 
-        return res.status(200).json({ response: result, validation });
+        return res.status(200).json({ response: tcResult, usage, validation });
     } catch (error) {
         console.error("Error in /regenerate-testcases:", error);
         return res.status(500).json({ error: error.message || "Internal server error." });
@@ -118,8 +135,9 @@ app.post("/refine-cod", authMiddleware, async (req, res) => {
         if (!question_data || !refine_prompt) {
             return res.status(400).json({ error: "question_data and refine_prompt are required." });
         }
-        const result = await aiCODRefiner({ question_data, inputformat, outputformat, constraints, language, refine_prompt, provider, model, useGuidelines, guidelinesContent });
-        return res.status(200).json({ response: result });
+        const { result, usage } = await aiCODRefiner({ question_data, inputformat, outputformat, constraints, language, refine_prompt, provider, model, useGuidelines, guidelinesContent });
+        saveTokenUsage(usage);
+        return res.status(200).json({ response: result, usage });
     } catch (error) {
         console.error("Error in /refine-cod:", error);
         return res.status(500).json({ error: error.message || "Internal server error." });
@@ -1023,6 +1041,16 @@ app.get("/models", (_req, res) => {
     res.status(200).json(AVAILABLE_MODELS);
 });
 
+app.get("/token-usage", authMiddleware, async (_req, res) => {
+    try {
+        const col = await _tuCol();
+        const docs = await col.find({}).sort({ total_tokens: -1 }).toArray();
+        res.status(200).json({ usage: docs });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to fetch token usage.' });
+    }
+});
+
 app.get("/guidelines", (_req, res) => {
     try {
         const p = path.join(__dirname, 'questionGuidelines.md');
@@ -1349,13 +1377,14 @@ app.post("/generate-batch", authMiddleware, async (req, res) => {
         }).catch(() => []);
 
         // Step 1: Generate N problem descriptions in one LLM call
-        const codResult = await aiCODGenerator({ ...codGenParams, count: parsedCount, excludeScenarios, createdBy });
-        if (!codResult || !codResult.result || codResult.result.length === 0) {
+        const codGenResult = await aiCODGenerator({ ...codGenParams, count: parsedCount, excludeScenarios, createdBy });
+        if (!codGenResult || !codGenResult.result || codGenResult.result.length === 0) {
             return res.status(500).json({ error: "Failed to generate problem descriptions." });
         }
 
-        const problems = codResult.result;
+        const problems = codGenResult.result;
         const batchResults = [];
+        const usageLog = [{ ...codGenResult.usage, call: 'cod-description' }];
 
         // Step 2 & 3: For each problem, generate solution + validate (sequential to avoid rate limits)
         const { provider, model, useGuidelines = false, guidelinesContent = null } = codGenParams;
@@ -1365,7 +1394,7 @@ app.post("/generate-batch", authMiddleware, async (req, res) => {
             let status = "error";
 
             try {
-                const solutionResult = await aiSolutionGenerator({
+                const solGenResult = await aiSolutionGenerator({
                     question_data: problem.question_data,
                     inputformat: problem.inputformat,
                     outputformat: problem.outputformat,
@@ -1376,6 +1405,8 @@ app.post("/generate-batch", authMiddleware, async (req, res) => {
                     useGuidelines,
                     guidelinesContent,
                 });
+                if (solGenResult?.usage) usageLog.push({ ...solGenResult.usage, call: 'solution' });
+                const solutionResult = solGenResult?.result;
 
                 solution = solutionResult?.[0] || null;
 
@@ -1398,10 +1429,12 @@ app.post("/generate-batch", authMiddleware, async (req, res) => {
             batchResults.push({ problem, solution, validation, status });
         }
 
+        usageLog.forEach(u => saveTokenUsage(u));
         res.status(200).json({
-            sessionId: codResult.sessionId,
+            sessionId: codGenResult.sessionId,
             count: batchResults.length,
             results: batchResults,
+            usageLog,
         });
 
     } catch (error) {

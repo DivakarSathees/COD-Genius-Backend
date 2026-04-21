@@ -164,23 +164,22 @@ exports.aiTestcaseGenerator = async ({ question_data, solution_data, language, c
         { role: 'user', content: prompt },
     ];
 
-    const resultText = await callLLM({ provider, model, messages, jsonMode: isAzure });
+    const { text: resultText, usage } = await callLLM({ provider, model, messages, jsonMode: isAzure });
     console.log('[aiTestcaseGenerator] raw response (first 500):', resultText.substring(0, 500));
 
     try {
         let text = stripCodeFences(resultText);
 
-        // Azure wraps in { "items": { ... } }
         try {
             const obj = JSON.parse(text);
             const inner = isAzure && obj?.items ? obj.items : obj;
-            if (inner?.testcases) return inner;
+            if (inner?.testcases) return { result: inner, usage };
         } catch (_) { /* fall through */ }
 
         const repairedText = jsonrepair(text);
         const parsed = JSON.parse(repairedText);
         const inner = isAzure && parsed?.items ? parsed.items : parsed;
-        if (inner?.testcases) return inner;
+        if (inner?.testcases) return { result: inner, usage };
         throw new Error('Response missing testcases field');
     } catch (e) {
         console.error('[aiTestcaseGenerator] parse error:', e.message);
@@ -216,7 +215,7 @@ exports.aiSolutionGenerator = async (req) => {
             { role: 'user', content: prompt },
         ];
 
-        const resultText = await callLLM({ provider, model, messages, jsonMode: isAzure });
+        const { text: resultText, usage } = await callLLM({ provider, model, messages, jsonMode: isAzure });
         console.log('[aiSolutionGenerator] raw response (first 500):', resultText.substring(0, 500));
 
         try {
@@ -232,7 +231,7 @@ exports.aiSolutionGenerator = async (req) => {
                 parsedJson = JSON.parse(repairedJson);
             }
 
-            return parsedJson;
+            return { result: parsedJson, usage };
         } catch (e) {
             console.error('[aiSolutionGenerator] Failed to parse JSON:', e.message);
             console.error('[aiSolutionGenerator] Raw LLM response (first 2000):', resultText.substring(0, 2000));
