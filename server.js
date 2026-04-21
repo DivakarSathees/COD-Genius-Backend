@@ -23,15 +23,22 @@ require('dotenv').config();
 const { MongoClient } = require('mongodb');
 
 // ── Persistent token-usage DB client ─────────────────────────────────────────
-const _tuClient = new MongoClient(process.env.MONGO_URI);
-async function _tuCol() {
-    if (!_tuClient.topology || !_tuClient.topology.isConnected()) await _tuClient.connect();
-    return _tuClient.db('aiMemoryDB').collection('tokenUsage');
+let _tuConnectPromise = null;
+function _tuConnect() {
+    if (!_tuConnectPromise) {
+        const client = new MongoClient(process.env.MONGO_URI);
+        _tuConnectPromise = client.connect().then(() => client).catch(e => {
+            _tuConnectPromise = null;
+            throw e;
+        });
+    }
+    return _tuConnectPromise;
 }
 async function saveTokenUsage(usage) {
     if (!usage?.model) return;
     try {
-        const col = await _tuCol();
+        const client = await _tuConnect();
+        const col = client.db('aiMemoryDB').collection('tokenUsage');
         await col.updateOne(
             { _id: `${usage.provider}/${usage.model}` },
             {
@@ -40,6 +47,7 @@ async function saveTokenUsage(usage) {
             },
             { upsert: true }
         );
+        console.log(`[tokenUsage] saved: ${usage.provider}/${usage.model} +${usage.total_tokens} tokens`);
     } catch (e) { console.warn('[tokenUsage] save failed:', e.message); }
 }
 
@@ -1043,8 +1051,8 @@ app.get("/models", (_req, res) => {
 
 app.get("/token-usage", authMiddleware, async (_req, res) => {
     try {
-        const col = await _tuCol();
-        const docs = await col.find({}).sort({ total_tokens: -1 }).toArray();
+        const client = await _tuConnect();
+        const docs = await client.db('aiMemoryDB').collection('tokenUsage').find({}).sort({ total_tokens: -1 }).toArray();
         res.status(200).json({ usage: docs });
     } catch (e) {
         res.status(500).json({ error: 'Failed to fetch token usage.' });
