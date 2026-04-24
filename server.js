@@ -39,15 +39,17 @@ async function saveTokenUsage(usage) {
     try {
         const client = await _tuConnect();
         const col = client.db('aiMemoryDB').collection('tokenUsage');
+        const istDate = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+        const date = istDate.toISOString().slice(0, 10); // YYYY-MM-DD IST
         await col.updateOne(
-            { _id: `${usage.provider}/${usage.model}` },
+            { _id: `${date}/${usage.provider}/${usage.model}` },
             {
                 $inc: { prompt_tokens: usage.prompt_tokens || 0, completion_tokens: usage.completion_tokens || 0, total_tokens: usage.total_tokens || 0, calls: 1 },
-                $set:  { provider: usage.provider, model: usage.model, lastUpdated: new Date() },
+                $set:  { date, provider: usage.provider, model: usage.model, lastUpdated: new Date() },
             },
             { upsert: true }
         );
-        console.log(`[tokenUsage] saved: ${usage.provider}/${usage.model} +${usage.total_tokens} tokens`);
+        console.log(`[tokenUsage] saved: ${date}/${usage.provider}/${usage.model} +${usage.total_tokens} tokens`);
     } catch (e) { console.warn('[tokenUsage] save failed:', e.message); }
 }
 
@@ -1052,7 +1054,7 @@ app.get("/models", (_req, res) => {
 app.get("/token-usage", authMiddleware, async (_req, res) => {
     try {
         const client = await _tuConnect();
-        const docs = await client.db('aiMemoryDB').collection('tokenUsage').find({}).sort({ total_tokens: -1 }).toArray();
+        const docs = await client.db('aiMemoryDB').collection('tokenUsage').find({}).sort({ date: -1, total_tokens: -1 }).toArray();
         res.status(200).json({ usage: docs });
     } catch (e) {
         res.status(500).json({ error: 'Failed to fetch token usage.' });
