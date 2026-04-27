@@ -20,17 +20,17 @@ async function getUsersCollection() {
 // Seed default admin user on first run
 async function seedDefaultAdmin() {
     const col = await getUsersCollection();
-    const exists = await col.findOne({ username: 'demo2' });
+    const exists = await col.findOne({ username: 'divakar' });
     if (!exists) {
-        const hashed = await bcrypt.hash('demo2@567', 10);
+        const hashed = await bcrypt.hash('Divakar123', 10);
         await col.insertOne({
-            username: 'demo2',
-            name: 'Demo User2',
+            username: 'divakar',
+            name: 'Divakar',
             password: hashed,
             role: 'admin',
             createdAt: new Date(),
         });
-        console.log('[Auth] Default admin seeded — username: demo2, password: demo2@987');
+        console.log('[Auth] Default admin seeded — username: Divakar, password: Divakar123');
     }
 }
 seedDefaultAdmin().catch(console.error);
@@ -43,9 +43,13 @@ router.post('/login', async (req, res) => {
     try {
         const col = await getUsersCollection();
         const user = await col.findOne({ username: username.toLowerCase().trim() });
+        // console.log(user);
+        
         if (!user) return res.status(401).json({ error: 'Invalid credentials.' });
 
         const match = await bcrypt.compare(password, user.password);
+        // console.log(match);
+        
         if (!match) return res.status(401).json({ error: 'Invalid credentials.' });
 
         const token = jwt.sign(
