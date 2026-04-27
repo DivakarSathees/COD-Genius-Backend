@@ -1,11 +1,19 @@
-def reverse_tagline(tagline):
-    if not tagline or len(tagline) > 400 or any(ord(c) < 32 or ord(c) > 126 for c in tagline):
-        return "Invalid input"
-    words = tagline.split()
-    return " ".join(reversed(words))
+import sys
 
-if __name__ == "__main__":
-    import sys
-    input_line = sys.stdin.read().strip()
-    result = reverse_tagline(input_line)
-    print(result)
+def reverse_description(description):
+    words = description.split()
+    reversed_description = ' '.join(reversed(words))
+    return reversed_description
+
+def main():
+    try:
+        description = sys.stdin.readline().strip()
+        if not description or len(description) > 250:
+            print("Invalid input")
+        else:
+            print(reverse_description(description))
+    except Exception as e:
+        pass
+
+if __name__ == '__main__':
+    main()

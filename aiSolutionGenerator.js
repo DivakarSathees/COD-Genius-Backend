@@ -187,6 +187,62 @@ exports.aiTestcaseGenerator = async ({ question_data, solution_data, language, c
     }
 };
 
+function buildDebugPrompt({ solution_data, question_data, language }) {
+    return `You are a programming instructor creating a debugging exercise for students.
+
+Given the CORRECT solution below, produce a BUGGY version that has 2–4 intentional, subtle errors students must find and fix.
+
+Rules:
+- Preserve the overall structure, class names, method signatures, and all imports exactly.
+- Introduce LOGICAL bugs only (wrong operator, off-by-one, wrong variable used, wrong condition, missing/extra step) — NOT syntax errors.
+- The buggy code must still COMPILE successfully but produce WRONG output for most inputs.
+- Do NOT add any comments, markers, or hints about where the bugs are.
+- Return ONLY valid JSON in this exact shape: { "debug_code": "..." }
+  where "debug_code" is the complete buggy source code as a properly escaped JSON string.
+
+Language: ${language || 'Java'}
+
+Problem:
+${question_data}
+
+Correct Solution:
+${solution_data}
+
+Return only valid JSON. No explanations, no markdown.`;
+}
+
+exports.aiDebugCodeGenerator = async ({ solution_data, question_data, language, provider = 'groq', model }) => {
+    const isAzure = (provider || 'groq').toLowerCase() === 'azure';
+    const prompt = buildDebugPrompt({ solution_data, question_data, language });
+
+    const messages = [
+        { role: 'system', content: 'You are a programming instructor creating debugging exercises. Return only valid JSON, no markdown.' },
+        { role: 'user', content: prompt },
+    ];
+
+    const { text: resultText, usage } = await callLLM({ provider, model, messages, jsonMode: isAzure });
+    console.log('[aiDebugCodeGenerator] raw response (first 500):', resultText.substring(0, 500));
+
+    try {
+        let text = stripCodeFences(resultText);
+
+        try {
+            const obj = JSON.parse(text);
+            const inner = isAzure && obj?.items ? obj.items : obj;
+            if (inner?.debug_code) return { debugCode: inner.debug_code, usage };
+        } catch (_) { /* fall through */ }
+
+        const repairedText = jsonrepair(text);
+        const parsed = JSON.parse(repairedText);
+        const inner = isAzure && parsed?.items ? parsed.items : parsed;
+        if (inner?.debug_code) return { debugCode: inner.debug_code, usage };
+        throw new Error('Response missing debug_code field');
+    } catch (e) {
+        console.error('[aiDebugCodeGenerator] parse error:', e.message);
+        throw new Error('The AI response is not valid JSON.');
+    }
+};
+
 exports.aiSolutionGenerator = async (req) => {
     try {
         const { question_data, inputformat, outputformat, constraints, language,

@@ -10,7 +10,7 @@ const { aiCODGenerator, aiCODRefiner } = require('./aiCODGenerator');
 const { uploadToPlatform } = require('./uploadToPlatform');
 // const { runCode } = require('./runCode');
 const axios = require('axios');
-const { aiSolutionGenerator, aiTestcaseGenerator } = require('./aiSolutionGenerator');
+const { aiSolutionGenerator, aiTestcaseGenerator, aiDebugCodeGenerator } = require('./aiSolutionGenerator');
 const { validateSolution } = require('./codeValidator');
 const { AVAILABLE_MODELS } = require('./llmClient');
 const { router: authRouter } = require('./authRoutes');
@@ -134,6 +134,19 @@ app.post("/regenerate-testcases", authMiddleware, async (req, res) => {
         return res.status(200).json({ response: tcResult, usage, validation });
     } catch (error) {
         console.error("Error in /regenerate-testcases:", error);
+        return res.status(500).json({ error: error.message || "Internal server error." });
+    }
+});
+
+app.post("/generate-debug-code", authMiddleware, async (req, res) => {
+    try {
+        const { solution_data, question_data, language, provider = 'groq', model } = req.body;
+        if (!solution_data) return res.status(400).json({ error: "solution_data is required." });
+        const { debugCode, usage } = await aiDebugCodeGenerator({ solution_data, question_data, language, provider, model });
+        saveTokenUsage(usage);
+        return res.status(200).json({ debugCode, usage });
+    } catch (error) {
+        console.error("Error in /generate-debug-code:", error);
         return res.status(500).json({ error: error.message || "Internal server error." });
     }
 });
