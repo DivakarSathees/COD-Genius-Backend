@@ -11,6 +11,8 @@ const AZURE_API_KEY     = process.env.AZURE_OPENAI_API_KEY   || '';
 const AZURE_API_VERSION = process.env.AZURE_API_VERSION      || '2024-12-01-preview';
 const GEMINI_API_KEY    = process.env.GEMINI_API_KEY         || '';
 const GITHUB_TOKEN      = process.env.GITHUB_TOKEN           || '';
+const PUTER_API_KEY     = process.env.PUTER_API_KEY          || '';
+const PUTER_API_URL     = 'https://api.puter.com';
 
 const DEFAULT_GROQ_MODEL   = 'meta-llama/llama-4-scout-17b-16e-instruct';
 const DEFAULT_AZURE_MODEL  = 'gpt-5-mini';
@@ -44,6 +46,15 @@ const AVAILABLE_MODELS = {
     { id: 'openai/gpt-5-mini',                    name: 'GPT-5 Mini' },
     { id: 'meta/Llama-3.3-70B-Instruct',          name: 'Llama 3.3 70B Instruct' },
     { id: 'mistral-ai/Mistral-small',             name: 'Mistral Small' },
+  ],
+  puter: [
+    { id: 'anthropic/claude-haiku-4.5',           name: 'Claude Haiku 4.5 (Fast)' },
+    { id: 'anthropic/claude-sonnet-4-6',           name: 'Claude Sonnet 4.6' },
+    { id: 'openai/gpt-5.4-mini',                   name: 'GPT-5.4 Mini' },
+    { id: 'openai/gpt-5.4-nano',                   name: 'GPT-5.4 Nano' },
+    { id: 'google/gemini-3.1-flash-lite-preview',  name: 'Gemini 3.1 Flash Lite' },
+    { id: 'qwen/qwen3.6-plus-preview:free',        name: 'Qwen 3.6 Plus (Free)' },
+    { id: 'liquid/lfm-2.5-1.2b-instruct:free',     name: 'LFM 2.5 1.2B (Free)' },
   ],
 };
 
@@ -151,6 +162,32 @@ async function callLLM({ provider = 'groq', model, messages, jsonMode = false })
     return {
       text: response.data.choices[0].message.content,
       usage: normalizeUsage(response.data.usage, 'github', chosenModel),
+    };
+
+  // ── Puter (free tier) ──────────────────────────────────────────────────────
+  } else if (prov === 'puter') {
+    const chosenModel = model || 'anthropic/claude-haiku-4.5';
+    const response = await axios.post(`${PUTER_API_URL}/drivers/call`, {
+      interface: 'puter-chat-completion',
+      driver: 'openai-completion',
+      test_mode: false,
+      method: 'complete',
+      args: { model: chosenModel, messages, stream: false },
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(PUTER_API_KEY ? { 'Authorization': `Bearer ${PUTER_API_KEY}` } : {}),
+      },
+      timeout: 90000,
+    });
+
+    const result = response.data?.result || {};
+    const text = result.choices?.[0]?.message?.content
+              || result.message?.content
+              || '';
+    return {
+      text,
+      usage: normalizeUsage(result.usage || {}, 'puter', chosenModel),
     };
 
   // ── Groq (default) ─────────────────────────────────────────────────────────

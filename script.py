@@ -1,17 +1,17 @@
 import sys
 
-def reverse_description(description):
-    words = description.split()
-    reversed_description = ' '.join(reversed(words))
-    return reversed_description
+def reverse_summary(summary):
+    words = summary.split()
+    reversed_summary = ' '.join(words)
+    return reversed_summary
 
 def main():
     try:
-        description = sys.stdin.readline().strip()
-        if not description or len(description) > 250:
-            print("Invalid input")
+        summary = sys.stdin.readline().strip()
+        if not summary or len(summary) < 250:
+            print('Invalid input')
         else:
-            print(reverse_description(description))
+            print(reverse_summary(summary))
     except Exception as e:
         pass
 
