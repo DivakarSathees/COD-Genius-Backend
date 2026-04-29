@@ -15,7 +15,7 @@ const { validateSolution } = require('./codeValidator');
 const { AVAILABLE_MODELS } = require('./llmClient');
 const { router: authRouter } = require('./authRoutes');
 const authMiddleware = require('./authMiddleware');
-const { saveGeneratedQuestion, markAsUploaded, getGeneratedScenarios } = require('./questionRegistry');
+const { saveGeneratedQuestion, markAsUploaded, getGeneratedScenarios, updateSolution, updateDebugCode } = require('./questionRegistry');
 const bodyParser = require("body-parser");
 // const { spawn } = require("child_process");
 const { spawn, spawnSync } = require("child_process");
@@ -102,6 +102,14 @@ app.post("/generate-solution", authMiddleware, async (req, res) => {
         const { result: parsedResult, usage } = await aiSolutionGenerator({ ...solveParams, guidelinesContent });
         saveTokenUsage(usage);
 
+        if (parsedResult?.[0] && solveParams.question_data) {
+            updateSolution({
+                question_data: solveParams.question_data,
+                solution_data: parsedResult[0].solution_data,
+                testcases: parsedResult[0].samples || [],
+            }).catch(err => console.warn('[Registry] Failed to update solution:', err.message));
+        }
+
         if (autoValidate && parsedResult?.[0]) {
             const solution = parsedResult[0];
             const validation = await validateSolution(
@@ -144,6 +152,10 @@ app.post("/generate-debug-code", authMiddleware, async (req, res) => {
         if (!solution_data) return res.status(400).json({ error: "solution_data is required." });
         const { debugCode, usage } = await aiDebugCodeGenerator({ solution_data, question_data, language, provider, model });
         saveTokenUsage(usage);
+        if (question_data) {
+            updateDebugCode({ question_data, debug_code: debugCode })
+                .catch(err => console.warn('[Registry] Failed to update debug code:', err.message));
+        }
         return res.status(200).json({ debugCode, usage });
     } catch (error) {
         console.error("Error in /generate-debug-code:", error);
@@ -179,15 +191,110 @@ app.post("/refine-cod", authMiddleware, async (req, res) => {
 //         });
 // });
 
+// ── Puter registry endpoints ──────────────────────────────────────────────────
+
+// Called after Puter question generation — saves questions + creates session in DB
+app.post("/register-questions", authMiddleware, async (req, res) => {
+    try {
+        const { questions = [], topic = '', sessionId = '' } = req.body;
+        const generatedBy = req.user.username;
+
+        if (sessionId) {
+            const client = await _tuConnect();
+            const language = questions[0]?.language || '';
+            await client.db('aiMemoryDB').collection('sessions').updateOne(
+                { _id: sessionId },
+                {
+                    $setOnInsert: { _id: sessionId, name: `${language} - ${topic}`, createdBy: generatedBy, createdAt: new Date() },
+                    $set: { lastActive: new Date() },
+                },
+                { upsert: true }
+            );
+        }
+
+        const { prompt = '' } = req.body;
+        let saved = 0;
+        for (const q of questions) {
+            if (q.question_data) {
+                await saveGeneratedQuestion({
+                    question_data: q.question_data,
+                    inputformat: q.inputformat || '',
+                    outputformat: q.outputformat || '',
+                    constraints: q.constraints || '',
+                    prompt,
+                    language: q.language || '',
+                    topic,
+                    generatedBy,
+                    sessionId,
+                }).catch(err => console.warn('[Registry] Failed to save question:', err.message));
+                saved++;
+            }
+        }
+        res.status(200).json({ saved });
+    } catch (error) {
+        console.error("Error in /register-questions:", error);
+        res.status(500).json({ error: "Internal server error." });
+    }
+});
+
+// Called after Puter solution generation — saves solution + testcases to DB
+app.post("/save-solution", authMiddleware, async (req, res) => {
+    try {
+        const { question_data, solution_data, testcases = [] } = req.body;
+        if (!question_data) return res.status(400).json({ error: "question_data is required." });
+        await updateSolution({ question_data, solution_data, testcases });
+        res.status(200).json({ ok: true });
+    } catch (error) {
+        console.error("Error in /save-solution:", error);
+        res.status(500).json({ error: "Internal server error." });
+    }
+});
+
+// Called after Puter debug code generation — saves debug code to DB
+app.post("/save-debug-code", authMiddleware, async (req, res) => {
+    try {
+        const { question_data, debug_code } = req.body;
+        if (!question_data) return res.status(400).json({ error: "question_data is required." });
+        await updateDebugCode({ question_data, debug_code });
+        res.status(200).json({ ok: true });
+    } catch (error) {
+        console.error("Error in /save-debug-code:", error);
+        res.status(500).json({ error: "Internal server error." });
+    }
+});
+
 app.post("/upload-to-platform", authMiddleware, async (req, res) => {
     try {
         const response = await uploadToPlatform(req.body);
 
-        // Mark question as uploaded in registry
+        // Mark question as uploaded in registry with full content snapshot
         const uploadedItem = req.body.data;
         if (uploadedItem?.question_data) {
+            // Extract solution_data and debug_code from the nested solution payload
+            const solutionEntry = uploadedItem.solution?.[0];
+            const solution_data = solutionEntry?.solutiondata?.[0]?.solution || null;
+            const debug_code = solutionEntry?.codeStub || null;
+
+            // Combine hidden testcases + sample IO into one array for full record
+            let sampleIo = [];
+            try { sampleIo = JSON.parse(uploadedItem.sample_io || '[]'); } catch (_) {}
+            const testcases = [
+                ...(uploadedItem.testcases || []),
+                ...sampleIo.map(s => ({ ...s, isSampleIO: true })),
+            ];
+
             await markAsUploaded({
                 question_data: uploadedItem.question_data,
+                inputformat: uploadedItem.inputformat || '',
+                outputformat: uploadedItem.outputformat || '',
+                constraints: uploadedItem.codeconstraints || '',
+                solution_data,
+                testcases: testcases.length ? testcases : null,
+                debug_code: debug_code || null,
+                language: uploadedItem.language || '',
+                topic: uploadedItem.topic || '',
+                sessionId: uploadedItem.sessionId || '',
+                generatedBy: req.user?.username || 'unknown',
                 uploadedBy: req.user?.username || 'unknown',
             }).catch(err => console.warn('[Registry] Failed to mark uploaded:', err.message));
         }

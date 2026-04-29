@@ -238,6 +238,10 @@ exports.aiCODGenerator = async (req) => {
                 if (q.question_data) {
                     await saveGeneratedQuestion({
                         question_data: q.question_data,
+                        inputformat: q.inputformat || '',
+                        outputformat: q.outputformat || '',
+                        constraints: q.constraints || '',
+                        prompt: prompt || '',
                         language: q.language || language,
                         topic: topic || '',
                         generatedBy: createdBy,

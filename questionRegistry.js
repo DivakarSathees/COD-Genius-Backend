@@ -79,7 +79,10 @@ function buildFingerprint(question_data = '') {
  * Save a generated question immediately after LLM generation.
  * Called for every question generated — prevents re-generation even if never uploaded.
  */
-async function saveGeneratedQuestion({ question_data, language, topic, generatedBy = 'unknown', sessionId = '' }) {
+async function saveGeneratedQuestion({
+    question_data, inputformat = '', outputformat = '', constraints = '', prompt = '',
+    language, topic, generatedBy = 'unknown', sessionId = '',
+}) {
     const col = await connectDB();
     const fingerprint = buildFingerprint(question_data);
     const title = extractTitle(question_data);
@@ -89,15 +92,10 @@ async function saveGeneratedQuestion({ question_data, language, topic, generated
         { fingerprint },
         {
             $setOnInsert: {
-                fingerprint,
-                title,
-                scenario,
-                language,
-                topic,
-                generatedBy,
-                sessionId,
-                uploadedAt: null,
-                generatedAt: new Date(),
+                fingerprint, title, scenario,
+                question_data, inputformat, outputformat, constraints, prompt,
+                language, topic, generatedBy, sessionId,
+                uploadedAt: null, generatedAt: new Date(),
             }
         },
         { upsert: true }
@@ -109,18 +107,30 @@ async function saveGeneratedQuestion({ question_data, language, topic, generated
  * Mark a question as uploaded to the platform.
  * Called from /upload-to-platform after a successful upload.
  */
-async function markAsUploaded({ question_data, uploadedBy = 'unknown' }) {
+async function markAsUploaded({
+    question_data, inputformat = '', outputformat = '', constraints = '',
+    solution_data = null, testcases = null, debug_code = null,
+    language = '', topic = '', sessionId = '', generatedBy = 'unknown', uploadedBy = 'unknown',
+}) {
     const col = await connectDB();
     const fingerprint = buildFingerprint(question_data);
-
-    // If not in registry yet (edge case: manual upload), insert it
     const title = extractTitle(question_data);
     const scenario = extractScenario(question_data);
+
+    const setFields = { uploadedAt: new Date(), uploadedBy };
+    if (solution_data !== null) setFields.solution_data = solution_data;
+    if (testcases !== null) setFields.testcases = testcases;
+    if (debug_code !== null) setFields.debug_code = debug_code;
+
     await col.updateOne(
         { fingerprint },
         {
-            $set: { uploadedAt: new Date(), uploadedBy },
-            $setOnInsert: { fingerprint, title, scenario, generatedAt: new Date() }
+            $set: setFields,
+            $setOnInsert: {
+                fingerprint, title, scenario,
+                question_data, inputformat, outputformat, constraints,
+                language, topic, sessionId, generatedBy, generatedAt: new Date(),
+            },
         },
         { upsert: true }
     );
@@ -159,6 +169,30 @@ async function isAlreadyGenerated(question_data) {
     return !!doc;
 }
 
+/**
+ * Update the solution and testcases for an already-registered question.
+ */
+async function updateSolution({ question_data, solution_data, testcases = [] }) {
+    const col = await connectDB();
+    const fingerprint = buildFingerprint(question_data);
+    await col.updateOne(
+        { fingerprint },
+        { $set: { solution_data, testcases, solutionGeneratedAt: new Date() } }
+    );
+}
+
+/**
+ * Update the debug code for an already-registered question.
+ */
+async function updateDebugCode({ question_data, debug_code }) {
+    const col = await connectDB();
+    const fingerprint = buildFingerprint(question_data);
+    await col.updateOne(
+        { fingerprint },
+        { $set: { debug_code, debugGeneratedAt: new Date() } }
+    );
+}
+
 module.exports = {
     saveGeneratedQuestion,
     markAsUploaded,
@@ -167,4 +201,6 @@ module.exports = {
     extractTitle,
     extractScenario,
     buildFingerprint,
+    updateSolution,
+    updateDebugCode,
 };

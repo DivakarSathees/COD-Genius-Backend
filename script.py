@@ -1,19 +1,18 @@
 import sys
 
-def reverse_summary(summary):
-    words = summary.split()
-    reversed_summary = ' '.join(words)
-    return reversed_summary
+def get_reversed_message(message):
+    if not message or message.isspace() or len(message) >= 250:
+        return "Invalid input"
+    words = message.split(' ')
+    if not words:
+        return "Invalid input"
+    return "Reversed: " + " ".join(words)
 
-def main():
-    try:
-        summary = sys.stdin.readline().strip()
-        if not summary or len(summary) < 250:
-            print('Invalid input')
-        else:
-            print(reverse_summary(summary))
-    except Exception as e:
-        pass
-
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    line = sys.stdin.readline()
+    if line.endswith('\n'):
+        line = line[:-1]
+    if line.endswith('\r'):
+        line = line[:-1]
+    result = get_reversed_message(line)
+    print(result)

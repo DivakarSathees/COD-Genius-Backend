@@ -43,13 +43,17 @@ exports.uploadToPlatform = async (req) => {
 //         question_editor_type: q.question_data.includes("$$$examly") ? 3 : 1,
 //     };
 
-    // console.log(req.data);
+    const cleanedData = { ...req.data };
+    delete cleanedData.language;
+    delete cleanedData.topic;
+    delete cleanedData.sessionId;
+    delete cleanedData.prompt;
     
 
     try {
       const response = await axios.post(
         "https://api.examly.io/api/programming_question/create",
-        req.data,
+        cleanedData,
         {
           headers: {
            "Cache-Control": "no-cache",
@@ -70,10 +74,13 @@ exports.uploadToPlatform = async (req) => {
 
     } catch (error) {
       console.error(`Failed to upload:`, error.response?.data || error.message);
-      results.push({ question: q.question_data, status: "Failed", error: error.message });
+      console.log(error.response?.data);
+      
+      results.push({ question: req.data, status: "Failed", error: error.response?.data });
     }
   // }
-  // console.log(results);
+  console.log("results");
+  console.log(results);
   
 
   return results;
