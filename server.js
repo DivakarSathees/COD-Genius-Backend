@@ -237,6 +237,44 @@ app.post("/register-questions", authMiddleware, async (req, res) => {
     }
 });
 
+// Returns paginated list of generated questions from DB
+app.get("/generated-questions", authMiddleware, async (req, res) => {
+    try {
+        const { page = 1, limit = 20, language, uploaded, search } = req.query;
+        const parsedPage = Math.max(1, parseInt(page) || 1);
+        const parsedLimit = Math.min(50, Math.max(1, parseInt(limit) || 20));
+        const skip = (parsedPage - 1) * parsedLimit;
+
+        const client = await _tuConnect();
+        const col = client.db('aiMemoryDB').collection('generatedQuestions');
+
+        const filter = {};
+        if (language) filter.language = { $regex: new RegExp(`^${language}$`, 'i') };
+        if (uploaded === 'yes') filter.uploadedAt = { $ne: null };
+        if (uploaded === 'no') filter.uploadedAt = null;
+        if (search) filter.title = { $regex: new RegExp(search, 'i') };
+
+        const [questions, total] = await Promise.all([
+            col.find(filter, {
+                projection: {
+                    title: 1, language: 1, topic: 1, prompt: 1,
+                    question_data: 1, inputformat: 1, outputformat: 1, constraints: 1,
+                    generatedBy: 1, generatedAt: 1,
+                    uploadedAt: 1, uploadedBy: 1,
+                    solutionGeneratedAt: 1, debugGeneratedAt: 1,
+                    solution_data: 1, debug_code: 1, testcases: 1,
+                }
+            }).sort({ generatedAt: -1 }).skip(skip).limit(parsedLimit).toArray(),
+            col.countDocuments(filter),
+        ]);
+
+        res.status(200).json({ questions, total, page: parsedPage, limit: parsedLimit });
+    } catch (error) {
+        console.error("Error in /generated-questions:", error);
+        res.status(500).json({ error: "Internal server error." });
+    }
+});
+
 // Called after Puter solution generation — saves solution + testcases to DB
 app.post("/save-solution", authMiddleware, async (req, res) => {
     try {
