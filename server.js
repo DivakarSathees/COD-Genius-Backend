@@ -148,9 +148,9 @@ app.post("/regenerate-testcases", authMiddleware, async (req, res) => {
 
 app.post("/generate-debug-code", authMiddleware, async (req, res) => {
     try {
-        const { solution_data, question_data, language, provider = 'groq', model } = req.body;
+        const { solution_data, question_data, language, testcases = [], bug_count = 3, debug_prompt = '', provider = 'groq', model } = req.body;
         if (!solution_data) return res.status(400).json({ error: "solution_data is required." });
-        const { debugCode, usage } = await aiDebugCodeGenerator({ solution_data, question_data, language, provider, model });
+        const { debugCode, usage } = await aiDebugCodeGenerator({ solution_data, question_data, language, testcases, bug_count, debug_prompt, provider, model });
         saveTokenUsage(usage);
         if (question_data) {
             updateDebugCode({ question_data, debug_code: debugCode })
